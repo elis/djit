@@ -107,7 +107,7 @@ const computer = (inputData = [], options = {}) => {
   const apiHandler = {
     get (target, key) {
       if (typeof key === 'string' && key.match(/^[A-Z]+[0-9]+$/)) {
-        return Data[key].value
+        return (Data[key] || {}).value
       }
       return target[key]
     },
