@@ -17,13 +17,7 @@ const qdata = djit([[150, 33], [12.55, 'Yo!']])
     A1: { input: 150, type: 'integer', value: 150, listeners: [ 'A3' ] },
     B1: { input: 33, type: 'integer', value: 33 },
     A2: { input: 12.55, type: 'float', value: 12.55, listeners: [ 'A3' ] },
-    B2: { input: 'Yo!', type: 'string', value: 'Yo!' },
-    A3: {
-      input: '=A1 + A2',
-      type: 'integer',
-      value: 162.55,
-      references: [ 'A1', 'A2' ]
-    }
+    B2: { input: 'Yo!', type: 'string', value: 'Yo!' }
   }
 */
 qdata.toArray()
