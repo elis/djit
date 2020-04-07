@@ -1,0 +1,43 @@
+{
+    "name": "djit",
+    "version": "1.0.0",
+    "description": "Excel-like Javascript Object",
+    "license": "MIT",
+    "main": "dist/djit.js",
+    "author": {
+        "name": "Eli Sklar",
+        "email": "eli.sklar@gmail.com"
+    },
+    "scripts": {
+        "audit": "source-map-explorer public/dist/main.bundle.js",
+        "clear": "rm -rf public/dist/",
+        "clear:all": "rm -rf node_modules/ && npm run clear",
+        "count": "find src -name '*.js' | xargs wc -l | sort -r",
+        "build": "npm run build:development",
+        "build:development": "webpack --config webpack/webpack.config.dev.js",
+        "build:production": "webpack --config webpack/webpack.config.prod.js",
+        "watch": "npm run build:development -- -w",
+        "start": "node public/dist/main.bundle.js"
+    },
+    "devDependencies": {
+        "@babel/core": "^7.9.0",
+        "@babel/preset-env": "^7.9.0",
+        "babel-loader": "^8.1.0",
+        "raw-loader": "^4.0.0",
+        "source-map-explorer": "^2.4.1",
+        "webpack": "^4.42.0",
+        "webpack-cli": "^3.3.11"
+    },
+    "keywords": [
+        "excel",
+        "spreadsheet",
+        "calculator"
+    ],
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/elis/djit"
+    },
+    "dependencies": {
+        "pegjs": "^0.10.0"
+    }
+}
