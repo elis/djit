@@ -1,6 +1,6 @@
 {
     "name": "djit",
-    "version": "1.0.0",
+    "version": "1.0.1",
     "description": "Excel-like Javascript Object",
     "license": "MIT",
     "main": "dist/djit.js",
