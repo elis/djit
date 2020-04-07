@@ -73,6 +73,7 @@ const computer = (inputData = [], options = {}) => {
           if (target[key] && target[key].listeners) {
             target[key].listeners.map(listener => processCell(target, listener))
           }
+        if (onChange && typeof onChange === 'function') onChange(key, target[key], Data)
       })
     }
 

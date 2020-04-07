@@ -1,3 +1,5 @@
+import { nameToAddress, addressToName } from './utils'
+
 const compileAST = (Data, options = {}) => {
   const { context = {} } = options
   let applyInnerAST
