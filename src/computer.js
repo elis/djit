@@ -24,15 +24,7 @@ const computer = (inputData = [], options = {}) => {
   
   const processCell = (target, key, input) => {
     const prev = target[key]
-    if (prev && prev.computing) {
-      return prev
-    }
     
-    target[key] = {
-      ...(target[key] || {}),
-      computing: true
-    }
-
     input = input || (prev || {}).input || ''
     const computed = parseCellInput(input)
 
@@ -41,8 +33,7 @@ const computer = (inputData = [], options = {}) => {
         ...(target[key] || {}),
         input,
         value: 'ERROR REF',
-        type: 'error',
-        computing: false
+        type: 'error'
       }
     }
     
@@ -91,10 +82,8 @@ const computer = (inputData = [], options = {}) => {
       target[key].listeners.map(listener => processCell(target, listener))
     }
     if (onChange && typeof onChange === 'function') onChange(key, target[key], Data)
-    return {
-      ...target[key],
-      computing: false
-    }
+    
+    return target[key]
   }
   
   

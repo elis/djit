@@ -17,7 +17,7 @@ const compileAST = (Data, options = {}) => {
   const astActions = {
     address (input, action) {
       const { address } = action
-      const cell = Data[address]
+      const { listeners, ...cell } = Data[address] || {}
       return {
         ...cell,
         references: [ address ]
