@@ -99,6 +99,7 @@ const computer = (inputData = [], options = {}) => {
   const api = {
     Data,
     toArray: () => toArray(Data),
+    inputsArray: () => toArray(Data, true),
     set: (col, row, value) => {
       const cid = addressToName(col, row)
       return Data[cid] = value
@@ -136,7 +137,7 @@ const computer = (inputData = [], options = {}) => {
 }
 
 // API Methods
-const toArray = (data) => {
+const toArray = (data, inputs = false) => {
   const cells = Object.entries(data)
   const output = []
   cells.map(([key, value]) => {
@@ -149,7 +150,7 @@ const toArray = (data) => {
         }
       }
     }
-    output[row][col] = value.value
+    output[row][col] = value[inputs ? 'input' : 'value']
   })
   return output
 }
