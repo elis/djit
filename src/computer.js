@@ -41,7 +41,8 @@ const computer = (inputData = [], options = {}) => {
         ...(target[key] || {}),
         input,
         value: 'ERROR REF',
-        type: 'error'
+        type: 'error',
+        computing: false
       }
     }
     
@@ -72,7 +73,8 @@ const computer = (inputData = [], options = {}) => {
     target[key] = {
       ...(target[key] || {}),
       ...computed,
-      input
+      input,
+      computing: false
     }
     
     if (computed && computed.value && computed.value instanceof Promise) {
