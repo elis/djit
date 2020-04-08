@@ -4,7 +4,7 @@ const compileAST = (Data, options = {}) => {
   const { context = {} } = options
   let applyInnerAST
 
-  const executeOp = (input, op, subject) => {
+  const computeOp = (input, op, subject) => {
     if (op === '+') return input + subject
     else if (op === '-') return input - subject
     else if (op === '*') return input * subject
@@ -12,6 +12,21 @@ const compileAST = (Data, options = {}) => {
     else if (op === '^') return Math.pow(input, subject)
 
     throw new Error('Unknown operation', op)
+  }
+  const executeOp = (input, op, subject) => {
+    if (input instanceof Promise) {
+      if (subject instanceof Promise) {
+        return input.then(v => subject.then(s => [v, s])).then(([v, s]) => computeOp(v, op, s))
+      }
+      return input.then(v => computeOp(input, op, v))
+    }
+    if (subject instanceof Promise) {
+      if (input instanceof Promise) {
+        return subject.then(v => input.then(s => [s, v])).then(([v, s]) => computeOp(v, op, s))
+      }
+      return subject.then(v => computeOp(input, op, v))
+    }
+    return computeOp(input, op, subject)
   }
 
   const astActions = {
@@ -37,19 +52,14 @@ const compileAST = (Data, options = {}) => {
       let result = left.value
       let type = left.type
 
-      const ops = action.operations.map(op => {
-        if (!(result instanceof Promise)) {
-          const right = applyInnerAST(op.value)
-          if (right) {
-            if (right.value instanceof Promise) {
-              result = right.value
-            } else {
-              if (right.references && right.references.length) {
-                right.references.map(r => references.add(r))
-              }
-              result = executeOp(result, op.op, right.value)
-            }
+      action.operations.map(op => {
+        const right = applyInnerAST(op.value)
+        if (right) {
+          if (right.references && right.references.length) {
+            right.references.map(r => references.add(r))
           }
+
+          result = executeOp(result, op.op, right.value)
         }
       })
 
@@ -101,7 +111,11 @@ const compileAST = (Data, options = {}) => {
             }
             return arg.value
           })
-          const result = executable[comm].apply(executable, execArgs)
+
+          const result = execArgs.find(a => a instanceof Promise)
+            ? Promise.all(execArgs).then(resolvedArgs => executable[comm].apply(executable, resolvedArgs))
+            : executable[comm].apply(executable, execArgs)
+
           return {
             references: [...references],
             value: result
