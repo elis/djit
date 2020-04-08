@@ -3,7 +3,13 @@
     "version": "1.0.6",
     "description": "Excel-like Javascript Object",
     "license": "MIT",
-    "main": "dist/djit.js",
+    "main": "cjs/djit.js",
+    "files": [
+        "LICENSE",
+        "README.md",
+        "cjs/",
+        "umd/"
+    ],
     "author": {
         "name": "Eli Sklar",
         "email": "eli.sklar@gmail.com"
