@@ -73,8 +73,7 @@ const computer = (inputData = [], options = {}) => {
     target[key] = {
       ...(target[key] || {}),
       ...computed,
-      input,
-      computing: false
+      input
     }
     
     if (computed && computed.value && computed.value instanceof Promise) {
@@ -92,7 +91,10 @@ const computer = (inputData = [], options = {}) => {
       target[key].listeners.map(listener => processCell(target, listener))
     }
     if (onChange && typeof onChange === 'function') onChange(key, target[key], Data)
-    return target[key]
+    return {
+      ...target[key],
+      computing: false
+    }
   }
   
   
