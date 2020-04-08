@@ -62,8 +62,8 @@ const computer = (inputData = [], options = {}) => {
     
     target[key] = {
       ...(target[key] || {}),
-      input,
-      ...computed
+      ...computed,
+      input
     }
     
     if (computed && computed.value && computed.value instanceof Promise) {
