@@ -24,6 +24,15 @@ const computer = (inputData = [], options = {}) => {
   
   const processCell = (target, key, input) => {
     const prev = target[key]
+    if (prev && prev.computing) {
+      return prev
+    }
+    
+    target[key] = {
+      ...(target[key] || {}),
+      computing: true
+    }
+
     input = input || (prev || {}).input || ''
     const computed = parseCellInput(input)
 

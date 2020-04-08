@@ -4,6 +4,7 @@
     "description": "Excel-like Javascript Object",
     "license": "MIT",
     "main": "cjs/djit.js",
+    "unpkg": "umd/djit.js",
     "files": [
         "LICENSE",
         "README.md",
@@ -15,15 +16,15 @@
         "email": "eli.sklar@gmail.com"
     },
     "scripts": {
-        "audit": "source-map-explorer public/dist/main.bundle.js",
-        "clear": "rm -rf public/dist/",
+        "audit": "source-map-explorer public/cjs/djit.js",
+        "clear": "rm -rf umd/ && rm -rf cjs/",
         "clear:all": "rm -rf node_modules/ && npm run clear",
         "count": "find src -name '*.js' | xargs wc -l | sort -r",
         "build": "npm run build:development",
         "build:development": "webpack --config webpack/webpack.config.dev.js",
         "build:production": "webpack --config webpack/webpack.config.prod.js",
         "watch": "npm run build:development -- -w",
-        "start": "node public/dist/main.bundle.js"
+        "start": "node public/cjs/djit.js"
     },
     "devDependencies": {
         "@babel/core": "^7.9.0",
@@ -35,6 +36,7 @@
         "webpack-cli": "^3.3.11"
     },
     "keywords": [
+        "djit",
         "excel",
         "spreadsheet",
         "calculator"

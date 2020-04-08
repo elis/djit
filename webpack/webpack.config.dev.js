@@ -8,5 +8,5 @@ const common = {
   mode: 'development',
   devtool: '#source-map',
 }
-module.exports = [Object.assign({}, common),
+module.exports = [Object.assign({}, commonCjs, common),
 Object.assign({}, commonUmd, common)];
