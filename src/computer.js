@@ -3,13 +3,13 @@ import compileAST from './ast-compiler'
 import { addressToName, nameToAddress } from './utils'
 
 const computer = (inputData = [], options = {}) => {
-  const { context, onChange } = options
+  const { context, onChange, getValue } = options
   
   const parseCellInput = (input) => {
     const parsed = cellParser(`${input}`)
     if (parsed && parsed.type) {
       try {
-        const parse = compileAST(Data, { context })
+        const parse = compileAST(Data, { context, getValue })
         const computedValue = parse(parsed)
         return computedValue
       } catch (error) {

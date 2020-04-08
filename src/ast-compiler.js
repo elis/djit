@@ -1,8 +1,11 @@
 import { nameToAddress, addressToName } from './utils'
 
 const compileAST = (Data, options = {}) => {
-  const { context = {} } = options
+  const { context = {}, getValue } = options
   let applyInnerAST
+  const gv = typeof getValue === 'function'
+    ? x => getValue(x)
+    : x => x
 
   const computeOp = (input, op, subject) => {
     if (op === '+') return input + subject
@@ -14,6 +17,9 @@ const compileAST = (Data, options = {}) => {
     throw new Error('Unknown operation', op)
   }
   const executeOp = (input, op, subject) => {
+    input = gv(input)
+    subject = gv(subject)
+
     if (input instanceof Promise) {
       if (subject instanceof Promise) {
         return input.then(v => subject.then(s => [v, s])).then(([v, s]) => computeOp(v, op, s))
@@ -107,9 +113,9 @@ const compileAST = (Data, options = {}) => {
         } else {
           const execArgs = parsedArgs.map(arg => {
             if (arg.type === 'range') {
-              return arg.value.map(cell => Data[cell]).map(({ value }) => value)
+              return arg.value.map(cell => Data[cell]).map(({ value }) => gv(value))
             }
-            return arg.value
+            return gv(arg.value)
           })
 
           const result = execArgs.find(a => a instanceof Promise)
