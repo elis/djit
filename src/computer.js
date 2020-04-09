@@ -65,33 +65,37 @@ const computer = (inputData = [], options = {}) => {
       }
     })
     
-    target[key] = onBeforeSet && typeof onBeforeSet === 'function'
-      ? onBeforeSet(key, {
-        ...(target[key] || {}),
-        ...computed,
-        input
-      })
-      : {
-        ...(target[key] || {}),
-        ...computed,
-        input
-      }
-    
-    if (computed && computed.value && computed.value instanceof Promise) {
-      computed.value.then(value => {
-        target[key].value = value
-
-        if (target[key] && target[key].listeners) {
-          target[key].listeners.map(listener => processCell(target, listener))
+    const postUpdate = (computed) => {
+      target[key] = onBeforeSet && typeof onBeforeSet === 'function'
+        ? onBeforeSet(key, {
+          ...(target[key] || {}),
+          ...computed,
+          input
+        }, postUpdate)
+        : {
+          ...(target[key] || {}),
+          ...computed,
+          input
         }
-        if (onChange && typeof onChange === 'function') onChange(key, target[key], Data)
-      })
+      
+      if (computed && computed.value && computed.value instanceof Promise) {
+        computed.value.then(value => {
+          target[key].value = value
+  
+          if (target[key] && target[key].listeners) {
+            target[key].listeners.map(listener => processCell(target, listener))
+          }
+          if (onChange && typeof onChange === 'function') onChange(key, target[key], Data)
+        })
+      }
+  
+      if (target[key] && target[key].listeners) {
+        target[key].listeners.map(listener => processCell(target, listener))
+      }
+      if (onChange && typeof onChange === 'function') onChange(key, target[key], Data)
     }
 
-    if (target[key] && target[key].listeners) {
-      target[key].listeners.map(listener => processCell(target, listener))
-    }
-    if (onChange && typeof onChange === 'function') onChange(key, target[key], Data)
+    postUpdate(computed)
     
     return target[key]
   }
