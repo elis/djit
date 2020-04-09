@@ -61,14 +61,19 @@ Command = comm:(word) _ "(" _ args:(Args) _ ")" {
   }
 }
 
-Arg = arg:(Range / Address / Command / TypedValue) { return arg; }
+Arg = arg:(Range / AddressProperty / Address / Command / TypedValue) { return arg; }
 
-Address = colFix:([$]?) col:([a-zA-Z]+)? '' rowFix:([$]?) row:([0-9]+) {
+Address = colFix:([$]?) col:([a-zA-Z]+)? '' rowFix:([$]?) row:([0-9]+) property:AddressProperty* {
   col = col && col.join('')
   row = parseInt(row.join(''))
   colFix = !!colFix
   rowFix = !!rowFix
-	return {type: 'address', row, col, colFix, rowFix, address: col + row }
+	return {type: 'address', row, col, colFix, rowFix, address: col + row, ...(property.length ? {property} : {}) }
+}
+
+AddressProperty = '.' _ property:(TypedInteger/!Address val:[a-zA-Z0-9]+ { return {type: 'string', value: val.join('')} }/Address) {
+  console.log('. Property:', property)
+	return property
 }
 
 Range = from:Address ':' to:Address {

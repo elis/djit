@@ -38,13 +38,51 @@ const compileAST = (Data, options = {}) => {
     return computeOp(input, op, subject)
   }
 
+  const computeProperties = (entry, properties) => {
+    let value = entry && entry.value
+
+    const references = new Set()
+    properties.map(prop => {
+      const compiledProp = applyInnerAST(prop)
+      if (!compiledProp) return null
+
+      if (compiledProp.type === 'string' || compiledProp.type === 'integer') {
+        value = value[compiledProp.value]
+      }
+      if (compiledProp.references && compiledProp.references.length) {
+        compiledProp.references.map(ref => references.add(ref))
+      }
+    })
+    return {
+      references: [...references],
+      value
+    }
+  }
+
   const astActions = {
     address(input, action) {
-      const { address } = action
+      const { address, property } = action
       const { listeners, ...cell } = Data[address] || {}
+      const references = new Set()
+      references.add(address)
+      const value = cell.type === 'range'
+        ? cell.value.map(r => 
+          r.map(ref => references.add(ref) && ref)
+            .map(ref => Data[ref])
+            .map(({value} = {}) => value)
+        )
+        : cell.value
+      
+      if (property) {
+        const properties = computeProperties({ ...cell, value }, property)
+        return {
+          value: properties && properties.value,
+          references: [...references, ...(properties.references || {})]
+        }
+      }
       return {
         ...cell,
-        references: [address]
+        references: [...references]
       }
     },
     execute(input, action) {
@@ -80,56 +118,58 @@ const compileAST = (Data, options = {}) => {
     },
     command(input, action) {
       const { comm, args } = action
-      const parsedArgs = []
       const references = new Set()
 
-      if (args && args.length) args.map(arg => {
-        const parsedArg = applyInnerAST(arg)
-        if (arg.type === 'range' && Array.isArray(parsedArg)) {
-          parsedArg.map(parg => {
-            if (parg.referernces) {
-              parg.referernces.map(ref => references.add(ref))
-            }
-          })
-          return parsedArgs.push(...parsedArg)
-        } else {
-          if (parsedArg.references) {
-            parsedArg.references.map(ref => references.add(ref))
-          }
-          parsedArgs.push(parsedArg)
-        }
-        return parsedArg
-      }) || []
-
-      const executable = context && Object.values(context).find(ctx => {
+      const executable = context && (Object.values(context).find(ctx => {
         return ctx && typeof ctx[comm] === 'function'
-      })
-      if (executable && typeof executable[comm] === 'function') {
-        if (action.args && action.args.length === 1 && action.args[0].type === 'range') {
-          const execArgs = parsedArgs[0].value.map(cid => Data[cid]).map(({ value }) => value)
-          const result = executable[comm].apply(executable, execArgs)
+      }) || {})[comm]
 
-          return {
-            references: [...references],
-            value: result
-          }
-        } else {
-          const execArgs = parsedArgs.map(arg => {
-            if (arg.type === 'range') {
-              return arg.value.map(cell => Data[cell]).map(({ value }) => gv(value))
+      if (!executable) return {
+        type: 'error',
+        value: 'ERROR EXE'
+      }
+
+      const run = (args) => executable.apply(executable, args)
+
+      const parsedArgs = args && args.length
+        ? args.map(arg => {
+          const parsedArg = applyInnerAST(arg)
+          if (parsedArg) {
+            if (parsedArg.references) {
+              parsedArg.references.map(ref => references.add(ref))
             }
-            return gv(arg.value)
-          })
+            if (parsedArg.type === 'range') {
+              const range = parsedArg.value.map(r => r.map(cid => Data[cid]).map(({value} = {}) => value))
+              return {
+                ...parsedArg,
+                value: range
+              }
+            }
+          }
+          return parsedArg
+        })
+        : []
 
-          const result = execArgs.find(a => a instanceof Promise)
-            ? Promise.all(execArgs).then(resolvedArgs => executable[comm].apply(executable, resolvedArgs))
-            : executable[comm].apply(executable, execArgs)
-
-          return {
-            references: [...references],
-            value: result
+      if (parsedArgs && parsedArgs.length) {
+        // If only one argument provided to a function is a range attempt to spread it as the arguments
+        if (parsedArgs.length === 1 && parsedArgs[0].type === 'range') {
+          if (parsedArgs[0].rows === 1 || parsedArgs[0].cols === 1) {
+            const inputs = []
+            parsedArgs[0].value.map(r => r.map(v => inputs.push(v)))
+            const result = run(inputs)
+            return {
+              value: result,
+              references: [...references]
+            }
           }
         }
+      }
+      const inputs = parsedArgs.map(({value}) => value)
+      const result = run(inputs)
+
+      return {
+        references: [...references],
+        value: result
       }
     },
     range(input, action) {
@@ -147,20 +187,22 @@ const compileAST = (Data, options = {}) => {
       const rows = (rowEnd - rowStart) + 1
       const cols = (colEnd - colStart) + 1
 
-      if (cols === 1) {
-        const result = []
-        for (let row = rowStart; row < rowStart + rows; ++row) {
-          for (let col = colStart; col < colStart + cols; ++col) {
-            const cid = addressToName(col, row)
-            references.add(cid)
-            result.push(cid)
-          }
+      const result = []
+      for (let row = rowStart; row < rowStart + rows; ++row) {
+        const k = []
+        for (let col = colStart; col < colStart + cols; ++col) {
+          const cid = addressToName(col, row)
+          references.add(cid)
+          k.push(cid)
         }
-        return {
-          references: [...references],
-          type: 'range',
-          value: result
-        }
+        result.push(k)
+      }
+      return {
+        rows,
+        cols,
+        references: [...references],
+        type: 'range',
+        value: result
       }
     }
   }
@@ -168,7 +210,6 @@ const compileAST = (Data, options = {}) => {
   const staticActions = ['string', 'integer', 'float', 'literal', 'error', 'pending']
 
   applyInnerAST = (action) => {
-    const references = []
     if (action && action.type && staticActions.indexOf(action.type) >= 0) {
       return action
     }
