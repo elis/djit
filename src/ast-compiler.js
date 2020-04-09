@@ -65,14 +65,8 @@ const compileAST = (Data, options = {}) => {
       const { listeners, ...cell } = Data[address] || {}
       const references = new Set()
       references.add(address)
-      const value = cell.type === 'range'
-        ? cell.value.map(r => 
-          r.map(ref => references.add(ref) && ref)
-            .map(ref => Data[ref])
-            .map(({value} = {}) => value)
-        )
-        : cell.value
-      
+      const value = cell.value
+
       if (property) {
         const properties = computeProperties({ ...cell, value }, property)
         return {
@@ -87,6 +81,13 @@ const compileAST = (Data, options = {}) => {
     },
     execute(input, action) {
       const result = applyInnerAST(input)
+      if (result.type === 'range') {
+        const range = result.value.map(r => r.map(cid => Data[cid]).map(({value} = {}) => value))
+        return {
+          ...result,
+          value: range
+        }
+      }
       return result
     },
     compute(input, action) {
