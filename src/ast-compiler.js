@@ -7,7 +7,10 @@ const compileAST = (Data, options = {}) => {
     ? x => getValue(x)
     : x => x
 
-  const computeOp = (input, op, subject) => {
+  const computeOp = (_input, op, _subject) => {
+    const input = gv(_input)
+    const subject = gv(_subject)
+
     if (op === '+') return input + subject
     else if (op === '-') return input - subject
     else if (op === '*') return input * subject
@@ -55,7 +58,7 @@ const compileAST = (Data, options = {}) => {
         left.references.map(r => references.add(r))
       }
 
-      let result = left.value
+      let result = gv(left.value)
       let type = left.type
 
       action.operations.map(op => {
@@ -65,7 +68,7 @@ const compileAST = (Data, options = {}) => {
             right.references.map(r => references.add(r))
           }
 
-          result = executeOp(result, op.op, right.value)
+          result = executeOp(result, op.op, gv(right.value))
         }
       })
 

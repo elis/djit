@@ -3,13 +3,17 @@ import compileAST from './ast-compiler'
 import { addressToName, nameToAddress } from './utils'
 
 const computer = (inputData = [], options = {}) => {
-  const { context, onChange, getValue } = options
+  const { context, onChange, getValue, onBeforeSet } = options
   
-  const parseCellInput = (input) => {
+  const parseCellInput = (key, input) => {
     const parsed = cellParser(`${input}`)
+    const _getValue = getValue && typeof getValue === 'function' 
+      ? (value) => getValue(key, value)
+      : null
+      
     if (parsed && parsed.type) {
       try {
-        const parse = compileAST(Data, { context, getValue })
+        const parse = compileAST(Data, { context, getValue: _getValue })
         const computedValue = parse(parsed)
         return computedValue
       } catch (error) {
@@ -26,7 +30,7 @@ const computer = (inputData = [], options = {}) => {
     const prev = target[key]
     
     input = input || (prev || {}).input || ''
-    const computed = parseCellInput(input)
+    const computed = parseCellInput(key, input)
 
     if (computed && computed.references && computed.references.includes(key)) {
       return target[key] = {
@@ -61,19 +65,25 @@ const computer = (inputData = [], options = {}) => {
       }
     })
     
-    target[key] = {
-      ...(target[key] || {}),
-      ...computed,
-      input
-    }
+    target[key] = onBeforeSet && typeof onBeforeSet === 'function'
+      ? onBeforeSet(key, {
+        ...(target[key] || {}),
+        ...computed,
+        input
+      })
+      : {
+        ...(target[key] || {}),
+        ...computed,
+        input
+      }
     
     if (computed && computed.value && computed.value instanceof Promise) {
       computed.value.then(value => {
-          target[key].value = value
+        target[key].value = value
 
-          if (target[key] && target[key].listeners) {
-            target[key].listeners.map(listener => processCell(target, listener))
-          }
+        if (target[key] && target[key].listeners) {
+          target[key].listeners.map(listener => processCell(target, listener))
+        }
         if (onChange && typeof onChange === 'function') onChange(key, target[key], Data)
       })
     }
