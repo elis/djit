@@ -47,7 +47,7 @@ const compileAST = (Data, options = {}) => {
       if (!compiledProp) return null
 
       if (compiledProp.type === 'string' || compiledProp.type === 'integer') {
-        value = value[compiledProp.value]
+        value = value && value[compiledProp.value]
       }
       if (compiledProp.references && compiledProp.references.length) {
         compiledProp.references.map(ref => references.add(ref))
