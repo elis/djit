@@ -13,7 +13,7 @@ const computer = (inputData = [], options = {}) => {
       
     if (parsed && parsed.type) {
       try {
-        const parse = compileAST(Data, { context, getValue: _getValue })
+        const parse = compileAST(Data, Data[key], { context, getValue: _getValue })
         const computedValue = parse(parsed)
         return computedValue
       } catch (error) {

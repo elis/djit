@@ -1,6 +1,6 @@
 import { nameToAddress, addressToName } from './utils'
 
-const compileAST = (Data, options = {}) => {
+const compileAST = (Data, current, options = {}) => {
   const { context = {}, getValue } = options
   let applyInnerAST
   const gv = typeof getValue === 'function'
@@ -130,7 +130,13 @@ const compileAST = (Data, options = {}) => {
         value: 'ERROR EXE'
       }
 
-      const run = (args) => executable.apply(executable, args)
+      const run = (args) => {
+        const result = executable.apply(executable, args)
+        if (typeof result === 'function') {
+          return result(current, Data)
+        }
+        return result
+      }
 
       const parsedArgs = args && args.length
         ? args.map(arg => {
