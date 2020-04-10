@@ -58,8 +58,11 @@ const computer = (inputData = [], options = {}) => {
       }
       if (onChange && typeof onChange === 'function') onChange(key, target[key], Data)
     }
-    
-    input = input || (prev || {}).input || ''
+
+    input = typeof input !== 'undefined'
+      ? input
+      : (prev || {}).input || ''
+
     const computed = parseCellInput(key, input, postUpdate)
 
     if (computed && computed.references && computed.references.includes(key)) {
@@ -95,8 +98,7 @@ const computer = (inputData = [], options = {}) => {
       }
     })
     
-
-    postUpdate(computed)
+    postUpdate({ computed, references: nextRefs })
     
     return target[key]
   }
