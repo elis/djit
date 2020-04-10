@@ -98,7 +98,6 @@ const compileAST = (Data, current, options = {}) => {
       }
 
       let result = gv(left.value)
-      let type = left.type
 
       action.operations.map(op => {
         const right = applyInnerAST(op.value)
@@ -112,7 +111,6 @@ const compileAST = (Data, current, options = {}) => {
       })
 
       return {
-        type,
         value: result,
         references: [...references]
       }
