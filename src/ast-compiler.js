@@ -133,7 +133,7 @@ const compileAST = (Data, current, options = {}) => {
       const run = (args) => {
         const result = executable.apply(executable, args)
         if (typeof result === 'function') {
-          return result(current, Data)
+          return result(current, Data, options.postUpdate)
         }
         return result
       }

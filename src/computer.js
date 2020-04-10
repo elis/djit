@@ -5,7 +5,7 @@ import { addressToName, nameToAddress } from './utils'
 const computer = (inputData = [], options = {}) => {
   const { context, onChange, getValue, onBeforeSet } = options
   
-  const parseCellInput = (key, input) => {
+  const parseCellInput = (key, input, postUpdate) => {
     const parsed = cellParser(`${input}`)
     const _getValue = getValue && typeof getValue === 'function' 
       ? (value) => getValue(key, value)
@@ -13,7 +13,7 @@ const computer = (inputData = [], options = {}) => {
       
     if (parsed && parsed.type) {
       try {
-        const parse = compileAST(Data, Data[key], { context, getValue: _getValue })
+        const parse = compileAST(Data, Data[key], { postUpdate, context, getValue: _getValue })
         const computedValue = parse(parsed)
         return computedValue
       } catch (error) {
@@ -29,8 +29,38 @@ const computer = (inputData = [], options = {}) => {
   const processCell = (target, key, input) => {
     const prev = target[key]
     
+    const postUpdate = (computed) => {
+      target[key] = onBeforeSet && typeof onBeforeSet === 'function'
+        ? onBeforeSet(key, {
+          ...(target[key] || {}),
+          ...computed,
+          input
+        }, postUpdate)
+        : {
+          ...(target[key] || {}),
+          ...computed,
+          input
+        }
+      
+      if (computed && computed.value && computed.value instanceof Promise) {
+        computed.value.then(value => {
+          target[key].value = value
+  
+          if (target[key] && target[key].listeners) {
+            target[key].listeners.map(listener => processCell(target, listener))
+          }
+          if (onChange && typeof onChange === 'function') onChange(key, target[key], Data)
+        })
+      }
+  
+      if (target[key] && target[key].listeners) {
+        target[key].listeners.map(listener => processCell(target, listener))
+      }
+      if (onChange && typeof onChange === 'function') onChange(key, target[key], Data)
+    }
+    
     input = input || (prev || {}).input || ''
-    const computed = parseCellInput(key, input)
+    const computed = parseCellInput(key, input, postUpdate)
 
     if (computed && computed.references && computed.references.includes(key)) {
       return target[key] = {
@@ -65,35 +95,6 @@ const computer = (inputData = [], options = {}) => {
       }
     })
     
-    const postUpdate = (computed) => {
-      target[key] = onBeforeSet && typeof onBeforeSet === 'function'
-        ? onBeforeSet(key, {
-          ...(target[key] || {}),
-          ...computed,
-          input
-        }, postUpdate)
-        : {
-          ...(target[key] || {}),
-          ...computed,
-          input
-        }
-      
-      if (computed && computed.value && computed.value instanceof Promise) {
-        computed.value.then(value => {
-          target[key].value = value
-  
-          if (target[key] && target[key].listeners) {
-            target[key].listeners.map(listener => processCell(target, listener))
-          }
-          if (onChange && typeof onChange === 'function') onChange(key, target[key], Data)
-        })
-      }
-  
-      if (target[key] && target[key].listeners) {
-        target[key].listeners.map(listener => processCell(target, listener))
-      }
-      if (onChange && typeof onChange === 'function') onChange(key, target[key], Data)
-    }
 
     postUpdate(computed)
     
