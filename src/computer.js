@@ -98,7 +98,7 @@ const computer = (inputData = [], options = {}) => {
       }
     })
     
-    postUpdate({ computed, references: nextRefs })
+    postUpdate({ ...computed, references: nextRefs })
     
     return target[key]
   }
