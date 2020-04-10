@@ -72,7 +72,6 @@ Address = colFix:([$]?) col:([a-zA-Z]+)? '' rowFix:([$]?) row:([0-9]+) property:
 }
 
 AddressProperty = '.' _ property:(TypedInteger/!Address val:[a-zA-Z0-9]+ { return {type: 'string', value: val.join('')} }/Address) {
-  console.log('. Property:', property)
 	return property
 }
 
