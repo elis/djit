@@ -62,7 +62,7 @@ const compileAST = (Data, current, options = {}) => {
   const astActions = {
     address(input, action) {
       const { address, property } = action
-      const { listeners,...cell } = Data[address] || {}
+      const { listeners, ...cell } = Data[address] || {}
       const references = new Set()
       references.add(address)
       const value = cell.value
