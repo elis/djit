@@ -44,7 +44,15 @@ const computer = (inputData = [], options = {}) => {
       
       if (computed && computed.value && computed.value instanceof Promise) {
         computed.value.then(value => {
-          target[key].value = value
+          target[key] = onBeforeSet && typeof onBeforeSet === 'function'
+            ? onBeforeSet(key, {
+              ...(target[key] || {}),
+              value
+            }, postUpdate)
+            : {
+              ...(target[key] || {}),
+              value
+            }
   
           if (target[key] && target[key].listeners) {
             target[key].listeners.map(listener => processCell(target, listener))
