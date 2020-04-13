@@ -3,7 +3,7 @@ import compileAST from './ast-compiler'
 import { addressToName, nameToAddress } from './utils'
 
 const computer = (inputData = [], options = {}) => {
-  const { context, onChange, getValue, onBeforeSet } = options
+  const { context, onChange, getValue, onBeforeSet, getCell } = options
   
   const parseCellInput = (key, input, postUpdate) => {
     const parsed = cellParser(`${input}`)
@@ -13,7 +13,7 @@ const computer = (inputData = [], options = {}) => {
       
     if (parsed && parsed.type) {
       try {
-        const parse = compileAST(Data, Data[key], { postUpdate, context, getValue: _getValue })
+        const parse = compileAST(Data, Data[key], { getCell, postUpdate, context, getValue: _getValue })
         const computedValue = parse(parsed)
         return computedValue
       } catch (error) {

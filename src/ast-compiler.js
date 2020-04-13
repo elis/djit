@@ -74,6 +74,28 @@ const compileAST = (Data, current, options = {}) => {
           references: [...references, ...(properties.references || {})]
         }
       }
+      if (options.getCell) {
+        try {
+          const result = options.getCell(value, {
+            ...cell,
+            references: [...references]
+          }) || {}
+  
+          return {
+            ...cell,
+            references: [...references],
+            ...result
+          }
+        } catch (error) {
+          return {
+            ...cell,
+            references: [...references],
+            type: 'error',
+            value: 'ERROR GET CELL',
+            error
+          }
+        }
+      }
       return {
         ...cell,
         references: [...references]
