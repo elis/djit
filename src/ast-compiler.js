@@ -174,7 +174,8 @@ const compileAST = (Data, current, options = {}) => {
 
       return {
         references: [...references],
-        value: result
+        value: result,
+        arguments: args
       }
     },
     range(input, action) {
