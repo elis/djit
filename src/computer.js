@@ -30,6 +30,10 @@ const computer = (inputData = [], options = {}) => {
     const prev = target[key]
     
     const postUpdate = (computed) => {
+      computed = typeof computed === 'function'
+        ? computed(target[key])
+        : computed
+      
       target[key] = onBeforeSet && typeof onBeforeSet === 'function'
         ? onBeforeSet(key, {
           ...(target[key] || {}),
