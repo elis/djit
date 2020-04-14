@@ -3,6 +3,11 @@ import { nameToAddress, addressToName } from './utils'
 const compileAST = (Data, current, options = {}) => {
   const { sheets = {}, context = {}, getSheets, getValue } = options
   let applyInnerAST
+
+  const getCell = typeof options.getCell === 'function'
+    ? options.getCell
+    : (value) => value
+    
   const gv = typeof getValue === 'function'
     ? x => getValue(x)
     : x => x
@@ -90,9 +95,9 @@ const compileAST = (Data, current, options = {}) => {
           references: [...references, ...(properties.references || {})]
         }
       }
-      if (options.getCell) {
+      if (typeof options.getCell === 'function') {
         try {
-          const result = options.getCell(value, {
+          const result = getCell(value, {
             ...cell,
             references: [...references]
           }) || {}
@@ -119,8 +124,9 @@ const compileAST = (Data, current, options = {}) => {
     },
     execute(input, action) {
       const result = applyInnerAST(input)
+
       if (result.type === 'range') {
-        const range = result.value.map(r => r.map(cid => Data[cid]).map(({value} = {}) => value))
+        const range = result.value.map(r => r.map(cid => Data[cid]).map(e => getCell(e.value, e)).map(({value} = {}) => value))
         return {
           ...result,
           value: range
@@ -174,6 +180,7 @@ const compileAST = (Data, current, options = {}) => {
         return result
       }
 
+
       const parsedArgs = args && args.length
         ? args.map(arg => {
           const parsedArg = applyInnerAST(arg)
@@ -182,7 +189,11 @@ const compileAST = (Data, current, options = {}) => {
               parsedArg.references.map(ref => references.add(ref))
             }
             if (parsedArg.type === 'range') {
-              const range = parsedArg.value.map(r => r.map(cid => Data[cid]).map(({value} = {}) => value))
+              const range = parsedArg.value
+                .map(r => r.map(cid => Data[cid])
+                  .map(e => getCell(e && e.value, e))
+                  .map(({value} = {}) => value)
+                )
               return {
                 ...parsedArg,
                 value: range
