@@ -3,26 +3,33 @@ import compileAST from './ast-compiler'
 import { addressToName, nameToAddress } from './utils'
 
 const computer = (inputData = [], options = {}) => {
-  const { context, onChange, getValue, onBeforeSet, getCell } = options
+  const { sheets, context, onChange, getSheets, getValue, onBeforeSet, getCell } = options
   
-  const parseCellInput = (key, input, postUpdate) => {
-    const parsed = cellParser(`${input}`)
+  const compile = (parsed, current, postUpdate) => {
     const _getValue = getValue && typeof getValue === 'function' 
-      ? (value) => getValue(key, value)
-      : null
-      
-    if (parsed && parsed.type) {
-      try {
-        const parse = compileAST(Data, Data[key], { getCell, postUpdate, context, getValue: _getValue })
-        const computedValue = parse(parsed)
-        return computedValue
-      } catch (error) {
-        console.error('Error:', error)
-        return {
-          type: 'error',
-          value: 'ERROR AST'
-        }
+    ? (value) => getValue(key, value)
+    : null
+
+    try {
+      const parse = compileAST(Data, current, { sheets, getCell, postUpdate, context, getSheets, getValue: _getValue })
+      const computedValue = parse(parsed)
+      return computedValue
+    } catch (error) {
+      console.error('Error:', error)
+      return {
+        type: 'error',
+        value: 'ERROR AST'
       }
+    }
+  }
+  const parse = (input, current = {}, postUpdate) => {
+    const parsed = cellParser(`${input}`)
+    if (parsed && parsed.type) {
+      return compile(parsed, current, postUpdate)
+    }
+    return {
+      type: 'error',
+      value: 'ERROR INPUT'
     }
   }
   
@@ -75,7 +82,7 @@ const computer = (inputData = [], options = {}) => {
       ? input
       : (prev || {}).input || ''
 
-    const computed = parseCellInput(key, input, postUpdate)
+    const computed = parse(input, Data[key], postUpdate)
 
     if (computed && computed.references && computed.references.includes(key)) {
       return target[key] = {
@@ -129,6 +136,9 @@ const computer = (inputData = [], options = {}) => {
   
   const api = {
     Data,
+    parse,
+    query: (input, current = {}, postUpdate) => parse(input, current, postUpdate).value,
+    execute: (action, current = {}, postUpdate) => compile(action, current, postUpdate),
     toArray: () => toArray(Data),
     inputsArray: () => toArray(Data, true),
     set: (col, row, value) => {

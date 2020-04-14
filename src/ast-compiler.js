@@ -1,7 +1,7 @@
 import { nameToAddress, addressToName } from './utils'
 
 const compileAST = (Data, current, options = {}) => {
-  const { context = {}, getValue } = options
+  const { sheets = {}, context = {}, getSheets, getValue } = options
   let applyInnerAST
   const gv = typeof getValue === 'function'
     ? x => getValue(x)
@@ -61,12 +61,28 @@ const compileAST = (Data, current, options = {}) => {
 
   const astActions = {
     address(input, action) {
-      const { address, property } = action
+      const { address, sheet, property } = action
       const { listeners, ...cell } = Data[address] || {}
       const references = new Set()
       references.add(address)
       const value = cell.value
-
+      if (sheet) {
+        const Sheet = sheets[sheet] || (typeof getSheets === 'function' && getSheets()[sheet])
+        if (Sheet) {
+          const { sheet, ...request } = action
+          try {
+            const result = Sheet.execute(request)
+            return result
+          } catch (error) {
+            return {
+              ...cell,
+              type: 'error',
+              value: 'ERROR ADDR',
+              error
+            }
+          }
+        }
+      }
       if (property) {
         const properties = computeProperties({ ...cell, value }, property)
         return {

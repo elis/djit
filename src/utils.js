@@ -1,10 +1,24 @@
-export const addressToName = (col, row) => {
-  return `${numberToLetters(col + 1)}${row + 1}`
+export const addressToName = (col, row, sheet, colFix, rowFix) => {
+  if (typeof col === 'object') return addressToName(col.col, col.row, col.sheet, col.colFix, col.rowFix)
+  let result = ''
+  if (sheet) result += sheet + '!'
+  if (colFix) result += '$'
+  result += numberToLetters(col + 1)
+  if (rowFix) result += '$'
+  result += (row + 1)
+
+  return result
 }
 
 export const nameToAddress = input => {
-  const result = `${input}`.match(/^([A-Z]+)([0-9]+)$/i)
-  return { col: lettersToNumber(result[1]) - 1, row: +result[2] - 1 }
+  const result = `${input}`.match(/^([A-Z0-9_]+)[!]?([$]?)([A-Z]+)([$]?)([0-9]+)$/i)
+  return { 
+    col: lettersToNumber(result[3]) - 1, 
+    row: +result[5] - 1, 
+    sheet: result[1], 
+    colFix: !!result[2],
+    rowFix: !!result[4]
+  }
 }
 
 /*
