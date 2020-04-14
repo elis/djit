@@ -63,12 +63,12 @@ Command = comm:(word) _ "(" _ args:(Args) _ ")" {
 
 Arg = arg:(Range / AddressProperty / Address / Command / TypedValue) { return arg; }
 
-Address = colFix:([$]?) col:([a-zA-Z]+)? '' rowFix:([$]?) row:([0-9]+) property:AddressProperty* {
+Address = sheet:([a-zA-Z0-9_]+ & '!' { return text() })? '!'? colFix:([$]?) col:([a-zA-Z]+)? '' rowFix:([$]?) row:([0-9]+) property:AddressProperty* {
   col = col && col.join('')
   row = parseInt(row.join(''))
   colFix = !!colFix
   rowFix = !!rowFix
-	return {type: 'address', row, col, colFix, rowFix, address: col + row, ...(property.length ? {property} : {}) }
+	return {sheet: sheet, type: 'address', row, col, colFix, rowFix, address: col + row, ...(property.length ? {property} : {}) }
 }
 
 AddressProperty = '.' _ property:(TypedInteger/!Address val:[a-zA-Z0-9]+ { return {type: 'string', value: val.join('')} }/Address) {
