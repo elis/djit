@@ -1,6 +1,6 @@
 import { nameToAddress, addressToName } from './utils'
 
-const compileAST = (Data, current, options = {}) => {
+const compileAST = (Data, current, options = {}, api) => {
   const { sheets = {}, context = {}, getSheets, getValue } = options
   let applyInnerAST
 
@@ -126,7 +126,7 @@ const compileAST = (Data, current, options = {}) => {
       const result = applyInnerAST(input)
       if (result && result.type === 'range') {
         const range = result.value.map(r => r.map(cid => {
-          const cell = Data[cid]
+          const cell = api.parse('=' + cid)
           return cell
         }).map(e => getCell(e && e.value, e)).map(({value} = {}) => value))
         return {
@@ -177,7 +177,7 @@ const compileAST = (Data, current, options = {}) => {
       const run = (args) => {
         const result = executable.apply(executable, args)
         if (typeof result === 'function') {
-          return result(current, Data, options.postUpdate)
+          return result(current, Data, options.postUpdate, api)
         }
         return result
       }
@@ -192,7 +192,7 @@ const compileAST = (Data, current, options = {}) => {
             }
             if (parsedArg.type === 'range') {
               const range = parsedArg.value
-                .map(r => r.map(cid => Data[cid])
+                .map(r => r.map(cid => api.parse('=' + cid))
                   .map(e => getCell(e && e.value, e))
                   .map(({value} = {}) => value)
                 )
@@ -234,6 +234,7 @@ const compileAST = (Data, current, options = {}) => {
     range(input, action) {
       const references = new Set()
 
+      const { sheet } = action.from
       const cidStart = nameToAddress(action.from.address)
       const cidEnd = nameToAddress(action.to.address)
 
@@ -245,6 +246,32 @@ const compileAST = (Data, current, options = {}) => {
 
       const rows = (rowEnd - rowStart) + 1
       const cols = (colEnd - colStart) + 1
+
+
+      if (sheet) {
+        const Sheet = sheets[sheet] || (typeof getSheets === 'function' && getSheets()[sheet])
+        if (Sheet) {
+          const { from: { sheet, ...from}, ...request } = action
+          try {
+            const { references, value, ...result } = Sheet.execute({...request, from})
+            // return { sheet, references, value, ...result }
+            const compiled = { 
+              references: references && references.length && references.map(nameToAddress)
+                .map(q => addressToName({ ...q, sheet })), 
+              value: value && value.length && value.map(r => r && r.length && r.map(nameToAddress).map(q => addressToName({ ...q, sheet }))),
+              ...result
+            }
+            return compiled
+          } catch (error) {
+            return {
+              ...cell,
+              type: 'error',
+              value: 'ERROR ADDR',
+              error
+            }
+          }
+        }
+      }
 
       const result = []
       for (let row = rowStart; row < rowStart + rows; ++row) {

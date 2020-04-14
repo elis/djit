@@ -11,7 +11,7 @@ const computer = (inputData = [], options = {}) => {
     : null
 
     try {
-      const parse = compileAST(Data, current, { sheets, getCell, postUpdate, context, getSheets, getValue: _getValue })
+      const parse = compileAST(Data, current, { sheets, getCell, postUpdate, context, getSheets, getValue: _getValue }, API)
       const computedValue = parse(parsed)
       return computedValue
     } catch (error) {
