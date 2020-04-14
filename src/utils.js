@@ -11,8 +11,8 @@ export const addressToName = (col, row, sheet, colFix, rowFix) => {
 }
 
 export const nameToAddress = input => {
-  const result = `${input}`.match(/^([A-Z0-9_]+)[!]?([$]?)([A-Z]+)([$]?)([0-9]+)$/i)
-  return { 
+  const result = `${input}`.match(/^([A-Z0-9_]+)?[!]?([$]?)([A-Z]+)([$]?)([0-9]+)$/i)
+  return result && { 
     col: lettersToNumber(result[3]) - 1, 
     row: +result[5] - 1, 
     sheet: result[1], 
