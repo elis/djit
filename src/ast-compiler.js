@@ -126,7 +126,7 @@ const compileAST = (Data, current, options = {}) => {
       const result = applyInnerAST(input)
 
       if (result.type === 'range') {
-        const range = result.value.map(r => r.map(cid => Data[cid]).map(e => getCell(e.value, e)).map(({value} = {}) => value))
+        const range = result.value.map(r => r.map(cid => Data[cid]).map(e => getCell(e && e.value, e)).map(({value} = {}) => value))
         return {
           ...result,
           value: range
