@@ -7,7 +7,7 @@ import assert from 'assert'
 
 
 const computer = (inputData = [], options = {}) => {
-  const { id: sheetId, sheets, context, onChange, getSheets: _getSheets, getValue, onBeforeSet: _onBeforeSet, getCell } = options
+  const { id: sheetId, sheets, context, onChange, getSheets: _getSheets, getValue, onBeforeSet: _onBeforeSet, getCell: _getCell } = options
 
   const getSheets = () => {
     if (!sheetId) throw new Error('Unable to access other sheets without sheetID')
@@ -18,6 +18,16 @@ const computer = (inputData = [], options = {}) => {
         : {}
   }
   const Sheets = () => getSheets()
+
+  const getCell = typeof _getCell === 'function'
+    ? (entry) => {
+      const result = _getCell(entry)
+      return {
+        ...entry,
+        ...(result || {})
+      }
+    }
+    : entry => entry
 
   const onBeforeSet = typeof _onBeforeSet === 'function'
     ? _onBeforeSet
@@ -218,7 +228,7 @@ const computer = (inputData = [], options = {}) => {
       const Sheet = Sheets()[remoteSheet]
 
       const remoteCid = addressToName({ ...remoteAddress, sheet: undefined })
-      return Sheet.Data[remoteCid]
+      return Sheet.getCellData[remoteCid]
     } else {
       return data[cid]
     }
@@ -228,7 +238,7 @@ const computer = (inputData = [], options = {}) => {
   const data = {}
   const dataHandler = {
     get(target, key) {
-      return target[key]
+      return getCell(target[key])
     },
     set(target, key, input) {
       return processCell(target, key, input) || true

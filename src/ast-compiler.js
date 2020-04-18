@@ -127,75 +127,53 @@ const compileAST = (Data, current, options = {}, api) => {
 
             references.map(nameToAddress).map(q => ({...q, sheet})).map(addressToName)
 
-            return {
+            return getCell({
               ...result,
               references: references && references.length && references.map(nameToAddress).map(q => ({...q, sheet})).map(addressToName)
-            }
+            })
           } catch (error) {
             // console.error('Error remote:', error)
             // console.groupEnd()
 
-            return {
+            return getCell({
               ...cell,
               type: 'error',
               value: 'ERROR ADDR',
               error
-            }
+            })
           }
         }
       }
       if (cell.type === 'error') {
-        return {
+        return getCell({
           ...cell,
           references: [...references]
-        }
+        })
       }
 
       if (property) {
         if (group) {
 
           const properties = computeProperties({ ...cell, value }, property, true)
-          return {
+          return getCell({
             value: properties && properties.value,
             references: [...references, ...(properties.references || {})]
-          }
+          })
         } else {
           const properties = computeProperties({ ...cell, value }, property)
 
-          return {
+          return getCell({
             value: properties && properties.value,
             references: [...references, ...(properties.references || [])],
             properties
-          }
+          })
         }
       }
 
-      if (typeof options.getCell === 'function') {
-        try {
-          const result = getCell(value, {
-            ...cell,
-            references: [...references]
-          }) || {}
-  
-          return {
-            ...cell,
-            references: [...references],
-            ...result
-          }
-        } catch (error) {
-            return {
-            ...cell,
-            references: [...references],
-            type: 'error',
-            value: 'ERROR GET CELL',
-            error
-          }
-        }
-      }
-      return {
+      return getCell({
         ...cell,
         references: [...references]
-      }
+      })
     },
 
     // =
