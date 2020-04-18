@@ -89,13 +89,13 @@ describe('getCell value trap', () => {
   beforeEach(() => {
 
     onBeforeSetQdata = (key, entry, postUpdate) => {
-      if (entry && entry.value && entry.value.special) {
+      if (entry && entry.value && entry.value.special && !entry.specialValue) {
         // console.log('\n\n\n⚾️ 🏀 🎾 SPECIAL beforeSet:', key, entry, postUpdate)
         for (let i = 0; i < 5; ++i) {
           const t = i
           setTimeout(() => {
             // console.log('Updateing value:')
-            postUpdate(v => (true && console.log('POST UPDATE V', v)) || ({ specialValue: { ...v.specialValue, blue: v.specialValue.init + (20 * (t + 1)) } }))
+            postUpdate(v => (false && console.log('POST UPDATE V', v)) || ({ specialValue: { ...v.specialValue, blue: v.specialValue.init + (20 * (t + 1)) } }))
           }, 100 * (t + 1))
         }
         return {
@@ -107,7 +107,7 @@ describe('getCell value trap', () => {
       }
       return entry
     }
-    const getCell = (entry) => {
+    const getCell = (value, entry) => {
       // console.log('🧵 Get cell:', entry)
       if (entry.specialValue) return {...entry, value: entry.specialValue.special + ' 😃 ' + entry.specialValue.blue }
     }

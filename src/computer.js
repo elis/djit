@@ -21,7 +21,7 @@ const computer = (inputData = [], options = {}) => {
 
   const getCell = typeof _getCell === 'function'
     ? (entry) => {
-      const result = _getCell(entry)
+      const result = _getCell(entry.value, entry)
       return {
         ...entry,
         ...(result || {})
@@ -30,7 +30,7 @@ const computer = (inputData = [], options = {}) => {
     : entry => entry
 
   const onBeforeSet = typeof _onBeforeSet === 'function'
-    ? _onBeforeSet
+    ? (key, entry, postUpdate) => ({ ...entry, ...(_onBeforeSet(key, entry, postUpdate) || {}) })
     : (key, entry) => entry
 
   const compile = (parsed, current, postUpdate) => {
