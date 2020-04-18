@@ -7,7 +7,7 @@ import assert from 'assert'
 
 
 const computer = (inputData = [], options = {}) => {
-  const { id: sheetId, sheets, context, onChange, getSheets: _getSheets, getValue, onBeforeSet, getCell } = options
+  const { id: sheetId, sheets, context, onChange, getSheets: _getSheets, getValue, onBeforeSet: _onBeforeSet, getCell } = options
 
   const getSheets = () => {
     if (!sheetId) throw new Error('Unable to access other sheets without sheetID')
@@ -18,6 +18,10 @@ const computer = (inputData = [], options = {}) => {
         : {}
   }
   const Sheets = () => getSheets()
+
+  const onBeforeSet = typeof _onBeforeSet === 'function'
+    ? _onBeforeSet
+    : (key, entry) => entry
 
   const compile = (parsed, current, postUpdate) => {
     const _getValue = getValue && typeof getValue === 'function'
@@ -244,6 +248,12 @@ const computer = (inputData = [], options = {}) => {
       const current = data[key]
       const currentRefs = [...((current && current.references) || [])]
 
+      const postUpdate = (newValue) => {
+        if (typeof newValue === 'function')
+          api.patchCell(key, newValue(data[key]))
+        else
+          api.patchCell(key, newValue)
+      }
 
       if (entryValue && entryValue.references) {
         const newRefs = _.difference(entryValue.references || [], currentRefs)
@@ -253,13 +263,14 @@ const computer = (inputData = [], options = {}) => {
 
         if (conflicting) {
           if (typeof voidUpdates === 'function') voidUpdates()
-          data[key] = {
+
+          data[key] = onBeforeSet(key, {
             ...(data[key] || {}),
             ...entryValue,
             references: currentRefs,
             type: 'error',
             value: 'ERROR REF: ' + _.flattenDeep([conflicting, key]).join(' ⇢ ')
-          }
+          }, postUpdate)
           engageListeners(key)
           return;
         }
@@ -267,13 +278,12 @@ const computer = (inputData = [], options = {}) => {
         newRefs.map(ref => addCellListener(key, ref))
         removedRefs.map(ref => removeCellListener(key, ref))
       }
-      data[key] = {
+      data[key] = onBeforeSet(key, {
         ...(data[key] || {}),
         ...entryValue
-      }
+      }, postUpdate)
 
       engageListeners(key)
-
     },
     cellTick: (key) => {
       api.patchCell(key, v => {

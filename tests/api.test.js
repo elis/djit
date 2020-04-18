@@ -19,7 +19,17 @@ const context = {
     return input + ' 💥'
   },
   echo: (...args) => args,
-  delay: async (input, delay = 100) => new Promise(resolve => setTimeout(async () => resolve(await input)), delay)
+  delay: async (input, delay = 100) => new Promise(resolve => setTimeout(async () => resolve(await input)), delay),
+  specialObject: value => ({ special: value, result: 'awesome!' }),
+  updatingCell: value => (key, entry, postUpdate) => {
+    for (let i = 0; i < 5; ++i) {
+      const t = i
+      setTimeout(() => {
+        postUpdate(v => ({ value: v.value + 30 }))
+      }, 100 * (t + 1))
+    }
+    return value
+  }
 }
 const getSheets = () => ({ qdata, vsheet })
 
@@ -34,6 +44,39 @@ beforeEach(() => {
   vsheet = djit.djit([], { id: 'vsheet', onChange: onChangeVsheet, getSheets, context: { Main: { ...context } } })
 })
 
+
+describe('onBeforeSet', () => {
+  let qdata
+  let vsheet
+
+  let onBeforeSetQdata
+  let onBeforeSetVsheet
+  
+  beforeEach(() => {
+    onBeforeSetQdata = jest.fn((cid, entry) => entry);
+    onBeforeSetVsheet = jest.fn((cid, entry) => entry);
+    const getSheets = () => ({ qdata, vsheet })
+  
+    qdata = djit.djit([], { id: 'qdata', onBeforeSet: onBeforeSetQdata, getSheets, context: { Main: { ...context } } })
+    vsheet = djit.djit([], { id: 'vsheet', onBeforeSet: onBeforeSetVsheet, getSheets, context: { Main: { ...context } } })
+  })
+  
+  test('Set special object', async () => {
+    qdata.A1 = '=specialObject("test")'
+    expect(qdata.A1).toStrictEqual({ result: 'awesome!', special: 'test' })
+  })
+
+  test('Updating cell', async () => {
+    qdata.A1 = '=updatingCell(150)'
+    expect(qdata.A1).toBe(150)
+
+    await sleep(100)
+    expect(qdata.A1).toBe(210)
+
+    await sleep(400)
+    expect(qdata.A1).toBe(450)
+  })
+})
 describe('onChange', () => {
 
   test('Check onChange', () => {
