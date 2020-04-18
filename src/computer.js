@@ -21,7 +21,7 @@ const computer = (inputData = [], options = {}) => {
 
   const getCell = typeof _getCell === 'function'
     ? (entry) => {
-      const result = _getCell(entry.value, entry)
+      const result = _getCell(entry && entry.value, entry)
       return {
         ...entry,
         ...(result || {})
