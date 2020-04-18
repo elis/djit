@@ -1,4 +1,4 @@
-const djit = require('djit')
+const djit = require('../cjs/djit')
 
 const sleep = async (time) => await new Promise(resolve => setTimeout(resolve, time))
 

@@ -1,4 +1,4 @@
-const djit = require('djit')
+const djit = require('../cjs/djit')
 
 let qdata
 let mdata

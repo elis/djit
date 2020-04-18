@@ -1,4 +1,4 @@
-const djit = require('djit')
+const djit = require('../cjs/djit')
 
 // Can be used as a benchmarking tool
 // Check the commented out code below
