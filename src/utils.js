@@ -1,3 +1,5 @@
+import cellParser from './cell-parser'
+
 export const addressToName = (col, row, sheet, colFix, rowFix) => {
   if (typeof col === 'object') return addressToName(col.col, col.row, col.sheet, col.colFix, col.rowFix)
   let result = ''
@@ -9,16 +11,31 @@ export const addressToName = (col, row, sheet, colFix, rowFix) => {
 
   return result
 }
+export const rangeAddressToName = (range) => {
+  return addressToName({
+    col: lettersToNumber(range.col) - 1,
+    row: range.row - 1,
+    sheet: range.sheet,
+    colFix: range.colFix,
+    rowFix: range.rowFix
+  })
+}
 
 export const nameToAddress = input => {
-  const result = `${input}`.match(/^([A-Z0-9_]+)?[!]?([$]?)([A-Z]+)([$]?)([0-9]+)$/i)
-  return result && { 
-    col: lettersToNumber(result[3]) - 1, 
-    row: +result[5] - 1, 
-    sheet: result[1], 
-    colFix: !!result[2],
-    rowFix: !!result[4]
+  const res = cellParser('=' + input)
+  if (res.type === 'execute') {
+    if (res.value.type === 'address') {
+      const { sheet, row, col, colFix, rowFix } = res.value
+      return {
+        sheet,
+        colFix,
+        rowFix,
+        col: lettersToNumber(col) - 1,
+        row: row - 1
+      }
+    }
   }
+  return false
 }
 
 /*
@@ -41,6 +58,7 @@ export const lettersToNumber = (letters) => {
 }
 export default {
   addressToName,
+  rangeAddressToName,
   nameToAddress,
   numberToLetters,
   lettersToNumber

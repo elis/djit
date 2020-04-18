@@ -1,7 +1,7 @@
 { const typed = (type, value, raw) => ({type, value, ...(raw ? {raw} : {})}) }
 
 CellParser 
-  = _ '=' _ value:Execute _ { return typed('execute', value) }
+  = _ '=' _ value:(GroupExecute/Execute) _ { return typed('execute', value) }
   / _ value:TypedFloat _ !('.'+ / [^0-9]) _ { return value }
   / _ value:TypedInteger _ !('.'+ / [^0-9]) _ { return value }
   / TypedString
@@ -11,19 +11,50 @@ TypedFloat = _ float:Float _ { return typed('float', float) }
 TypedInteger = _ integer:Integer _ { return typed('integer', integer) }
 TypedString = _ string:String _ { return typed('string', string) }
 
-Execute = query:(Factor/Command/Address) {
+Execute = query:(GroupExecute/Factor/Command/Address) {
   return query
+}
+
+GroupExecute = '(' _ execute:Execute _ ')' property:AnyProperty* {
+	return {
+    type: 'group',
+    property,
+    	execute
+    }
+}
+
+AnyProperty = DotProperty / ArrayProperty
+
+DotProperty = '.' _ property:(GroupAnyProperty/TypedInteger/Factor/Command/!Address val:[a-zA-Z0-9]+ { return {type: 'string', value: val.join('')} }/Address) _ {
+	return property
+}
+
+ArrayProperty = '[' _ property:(GroupAnyProperty/TypedInteger/Factor/Command/Address) _ ']' {
+	return property
+}
+
+GroupAnyProperty = _ '(' _ property:(Factor/Command/!Address val:[a-zA-Z0-9]+ { return {type: 'string', value: val.join('')} }/Address) _ ')' _ {
+	return {
+      group: true,
+      ...property
+    }
 }
 
 String = val:(.*) { return val.join('') }
 
-Integer = int:([0-9,])+ _ {
-  return parseInt(int.join('').replace(',', ''))
+Integer = Exponential / SignInt
+SignInt = sign:'-'? numbers:($ [0-9,]+) {
+  return parseInt((sign || '') + numbers.replace(/,/g, ''))
+}
+
+Exponential = left:(SignFloat/SignInt) 'e' '+'? right:SignInt {
+  return parseFloat(left + 'e' + right)
 }
 
 word = word:(letter+) {
   return word.join('')
 }
+
 letter = [a-zA-Z0-9]
 
 Operation = op:('+'/'-'/'*'/'/'/'^') _ value:Factor {
@@ -33,37 +64,43 @@ Operation = op:('+'/'-'/'*'/'/'/'^') _ value:Factor {
     value
   }
 }
+
 Factor = input:Primary _ operations:(Operation)* {
   if (!operations || !operations.length) {
     return input
   }
   return {type: 'compute', input, operations}
 }
+
 Primary = '(' val:Factor ')' { return val }
   / TypedFloat
   / TypedInteger
   / Arg
 
-Number = int:([0-9,]+) { return parseInt(int.join('').replace(',', '')) }
-Float = left:([0-9,]+)? '.' right:([0-9]+) {
-  return parseFloat(left.join('').replace(',', '') + '.' + right.join(''))
+Number = int:('-'? [0-9,]+) { return parseInt(int.join('').replace(',', '')) }
+Float = Exponential / SignFloat
+
+SignFloat = sign:'-'? left:($ [0-9,]+) _ '.' _ right:($ [0-9,]+) {
+	return parseFloat((sign || '') + left.replace(',', '') + '.' + right)
+}
+Args = _ arg:(Factor/Arg) _ ','? {
+	return arg
 }
 
-Args = args:([,]? _ arg:(Factor/Arg) _ { return arg })* {
-	return args
-}
+SuffArg = ',' _ a:(Factor/Arg) { return a }
 
-Command = comm:(word) _ "(" _ args:(Args) _ ")" {
-  return {
+Command = comm:(word) _ "(" _ args:(Args*) _ ")" property:(AnyProperty)* {
+return {
     type: 'command',
     comm,
+    property,
     args
   }
 }
 
-Arg = arg:(Range / AddressProperty / Address / Command / TypedValue) { return arg; }
+Arg = arg:(Range / AnyProperty / Address / Command / TypedValue) { return arg; }
 
-Address = sheet:([a-zA-Z0-9_]+ & '!' { return text() })? '!'? colFix:([$]?) col:([a-zA-Z]+)? '' rowFix:([$]?) row:([0-9]+) property:AddressProperty* {
+Address = sheet:([a-zA-Z0-9_]+ & '!' { return text() })? '!'? colFix:([$]?) col:([a-zA-Z]+)? '' rowFix:([$]?) row:([0-9]+) property:AnyProperty* {
   col = col && col.join('')
   row = parseInt(row.join(''))
   colFix = !!colFix
@@ -71,16 +108,24 @@ Address = sheet:([a-zA-Z0-9_]+ & '!' { return text() })? '!'? colFix:([$]?) col:
 	return {sheet: sheet, type: 'address', row, col, colFix, rowFix, address: col + row, ...(property.length ? {property} : {}) }
 }
 
-AddressProperty = '.' _ property:(TypedInteger/!Address val:[a-zA-Z0-9]+ { return {type: 'string', value: val.join('')} }/Address) {
+AddressProperty = '.' _ property:(GroupProperty/TypedInteger/!Address val:[a-zA-Z0-9]+ { return {type: 'string', value: val.join('')} }/Address) _ {
 	return property
 }
 
-Range = from:Address ':' to:Address {
-  return {
+GroupProperty = _ '(' _ property:(TypedInteger/!Address val:[a-zA-Z0-9]+ { return {type: 'string', value: val.join('')} }/Address) _ ')' _ {
+	return {
+      group: true,
+      ...property
+    }
+}
 
+Range = from:Address ':' to:(Address) _property:AnyProperty* {
+	const {property, ..._to} = to
+  return {
+	property,
     type: 'range',
     from,
-    to
+    to: _to
   }
 }
 

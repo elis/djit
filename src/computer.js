@@ -1,15 +1,28 @@
+import _ from 'lodash'
 import cellParser from './cell-parser'
 import compileAST from './ast-compiler'
 import { addressToName, nameToAddress } from './utils'
+import treeify from 'treeify'
+import assert from 'assert'
+
 
 const computer = (inputData = [], options = {}) => {
-  const { sheets, context, onChange, getSheets, getValue, onBeforeSet, getCell } = options
-  
-  const compile = (parsed, current, postUpdate) => {
-    const _getValue = getValue && typeof getValue === 'function' 
-    ? (value) => getValue(key, value)
-    : null
+  const { id: sheetId, sheets, context, onChange, getSheets: _getSheets, getValue, onBeforeSet, getCell } = options
 
+  const getSheets = () => {
+    if (!sheetId) throw new Error('Unable to access other sheets without sheetID')
+    return typeof getSheets === 'function'
+      ? _getSheets()
+      : sheets
+        ? sheets
+        : {}
+  }
+  const Sheets = () => getSheets()
+
+  const compile = (parsed, current, postUpdate) => {
+    const _getValue = getValue && typeof getValue === 'function'
+      ? (value) => getValue(key, value)
+      : null
     try {
       const parse = compileAST(Data, current, { sheets, getCell, postUpdate, context, getSheets, getValue: _getValue }, API)
       const computedValue = parse(parsed)
@@ -17,14 +30,30 @@ const computer = (inputData = [], options = {}) => {
     } catch (error) {
       console.error('Error:', error)
       return {
+        error,
         type: 'error',
-        value: 'ERROR AST'
+        value: 'ERROR AST: ' + error
       }
     }
   }
   const parse = (input, current = {}, postUpdate) => {
+    if (Array.isArray(input)) {
+      return {
+        input,
+        type: 'array',
+        value: [...input]
+      }
+    }
+    else if (typeof input === 'object') {
+      return {
+        input,
+        type: 'object',
+        value: { ...input }
+      }
+    }
     const parsed = cellParser(`${input}`)
     if (parsed && parsed.type) {
+      const compiled = compile(parsed, current, postUpdate)
       return compile(parsed, current, postUpdate)
     }
     return {
@@ -32,111 +61,233 @@ const computer = (inputData = [], options = {}) => {
       value: 'ERROR INPUT'
     }
   }
-  
-  const processCell = (target, key, input) => {
-    const prev = target[key]
-    
-    const postUpdate = (computed) => {
-      computed = typeof computed === 'function'
-        ? computed(target[key])
-        : computed
-      
-      target[key] = onBeforeSet && typeof onBeforeSet === 'function'
-        ? onBeforeSet(key, {
-          ...(target[key] || {}),
-          ...computed,
-          input
-        }, postUpdate)
-        : {
-          ...(target[key] || {}),
-          ...computed,
-          input
-        }
-      
-      if (computed && computed.value && computed.value instanceof Promise) {
-        computed.value.then(value => {
-          target[key] = onBeforeSet && typeof onBeforeSet === 'function'
-            ? onBeforeSet(key, {
-              ...(target[key] || {}),
-              value
-            }, postUpdate)
-            : {
-              ...(target[key] || {}),
-              value
-            }
-  
-          if (target[key] && target[key].listeners) {
-            target[key].listeners.map(listener => processCell(target, listener))
-          }
-          if (onChange && typeof onChange === 'function') onChange(key, target[key], Data)
-        })
-      }
-  
-      if (target[key] && target[key].listeners) {
-        target[key].listeners.map(listener => processCell(target, listener))
-      }
-      if (onChange && typeof onChange === 'function') onChange(key, target[key], Data)
-    }
 
-    input = typeof input !== 'undefined'
-      ? input
-      : (prev || {}).input || ''
+  const handleListener = (add = true) => (listener, voice) => {
+    const remoteAddress = nameToAddress(voice)
+    const remoteSheet = remoteAddress.sheet
+    if (remoteSheet) {
+      const localAddress = addressToName({ ...nameToAddress(listener), sheet: sheetId })
+      const Sheet = Sheets()[remoteSheet]
 
-    const computed = parse(input, Data[key], postUpdate)
-
-    if (computed && computed.references && computed.references.includes(key)) {
-      return target[key] = {
-        ...(target[key] || {}),
-        input,
-        value: 'ERROR REF',
-        type: 'error'
-      }
-    }
-    
-    const nextRefs = computed && computed.references || []
-    const prevRefs = prev && prev.references || []
-
-    const addedRefs = nextRefs.filter(ref => !prevRefs.includes(ref))
-    const removedRefs = prevRefs.filter(ref => !nextRefs.includes(ref))
-
-    removedRefs.map(removed => {
-      target[removed] = {
-        ...(target[removed] || {}),
+      const remoteCid = addressToName({ ...remoteAddress, sheet: undefined })
+      Sheet.patchCell(remoteCid, v => ({
         listeners: [
-          ...((target[removed] || {}).listeners || []).filter(listener => listener !== key)
+          ...(v.listeners || []).filter(rl => rl !== localAddress),
+          ...(add ? [localAddress] : [])
         ]
-      }
-    })
-    addedRefs.map(added => {
-      target[added] = {
-        ...(target[added] || {}),
+      }))
+      // Sheet.cellTick(remoteCid)
+    } else {
+      api.patchCell(voice, v => ({
         listeners: [
-          ...((target[added] || {}).listeners || []).filter(listener => listener !== key),
-          key
+          ...(v.listeners || []).filter(rl => rl !== listener),
+          ...(add ? [listener] : [])
         ]
-      }
-    })
-    
-    postUpdate({ ...computed, references: nextRefs })
-    
-    return target[key]
+      }))
+      // api.cellTick(voice)
+
+    }
   }
-  
-  
-  const data = { }
+  const addCellListener = handleListener(true)
+  const removeCellListener = handleListener(false)
+
+  const tick = ref => {
+    const remoteAddress = nameToAddress(ref)
+    const remoteSheet = remoteAddress.sheet
+    if (remoteSheet) {
+      const Sheet = Sheets()[remoteSheet]
+
+      const remoteCid = addressToName({ ...remoteAddress, sheet: undefined })
+      Sheet.cellTick(remoteCid)
+    } else {
+      api.cellTick(ref)
+    }
+  }
+
+  const engageListener = voice => tick
+
+  const cache = {}
+
+  const engageListeners = (key) => {
+    const cell = API.Data[key]
+    const { listeners = [] } = cell || {}
+    try {
+      assert.deepEqual(cell, cache[key] || {})
+    } catch (error) {
+      const engage = engageListener(key)
+      listeners.map(engage)
+      
+      if (onChange && typeof onChange === 'function') {
+        cache[key] = _.cloneDeep(cell)
+        onChange(key, cell)
+      }
+    }
+  }
+
+  const checkCircular = (key, references, originating, checked = []) => {
+    if (references && references.length) {
+      const result = references
+        .reduce((res, ref) => {
+          if (res) return res
+          if (ref === key) return ref
+
+          const { sheet: remoteSheet, ...remoteAddress } = nameToAddress(ref)
+          if (remoteSheet) {
+            const remoteCid = addressToName(remoteAddress)
+            
+            const Sheet = Sheets()[remoteSheet]
+
+            const remoteCell = Sheet && Sheet.Data[remoteCid]
+
+            const remoteRefs = remoteCell && remoteCell.references
+
+            if (remoteRefs) {
+              const localCid = addressToName({ ...nameToAddress(key), sheet: sheetId })
+              const remoteConflicts = Sheet.checkCircular(localCid, remoteRefs, originating, [...checked, key])
+              const refName = addressToName({ ...nameToAddress(ref), sheet: nameToAddress(ref).sheet && nameToAddress(ref).sheet === originating ? null : remoteSheet })
+              if (remoteConflicts) return [refName, remoteConflicts] //.join(' ==> ')
+            }
+          } else {
+            // check local conflicts
+            const remoteCell = Data[ref]
+            const remoteRefs = remoteCell && remoteCell.references
+            if (remoteCell) {
+              const remoteConflicts = checkCircular(key, remoteRefs, originating, [...checked, key])
+              const refName = originating !== sheetId
+                ? addressToName({ ...nameToAddress(ref), sheet: sheetId })
+                : ref
+              if (remoteConflicts) return [refName, remoteConflicts] //.join(' ++> ')
+            }
+          }
+        }, false)
+      return result
+    }
+    return false
+  }
+
+  const processCell = (target, key, input) => {
+    const current = target[key]
+
+    let allowPosts = true
+    const postUpdate = (newValue) => {
+      if (!allowPosts) {
+        return;
+      }
+      if (typeof newValue === 'function')
+        api.patchCell(key, newValue(target[key]))
+      else
+        api.patchCell(key, newValue)
+    }
+    const voidUpdates = () => {
+      allowPosts = false
+    }
+    const parsed = parse(input, current, postUpdate)
+    if (parsed && parsed.property) {
+
+    }
+
+    api.patchCell(key, (v = {}) => {
+      const newValue = ({
+        ...(v || {}),
+        input,
+        value: parsed && parsed.value,
+        type: !v.type || v.type === 'error' ? parsed.type : v.type,
+        references: [
+          ...((parsed && parsed.references) || [])
+        ]
+      })
+
+      return newValue
+    }, voidUpdates)
+
+    if (parsed && parsed.value instanceof Promise) {
+      parsed.value.then(newValue => {
+        postUpdate({ value: newValue })
+      })
+    }
+  }
+
+  const getCellData = cid => {
+    const remoteAddress = nameToAddress(cid)
+    const remoteSheet = remoteAddress.sheet
+    if (remoteSheet) {
+      const Sheet = Sheets()[remoteSheet]
+
+      const remoteCid = addressToName({ ...remoteAddress, sheet: undefined })
+      return Sheet.Data[remoteCid]
+    } else {
+      return data[cid]
+    }
+  }
+
+
+  const data = {}
   const dataHandler = {
-    get (target, key) {
+    get(target, key) {
       return target[key]
     },
-    set (target, key, input) {
+    set(target, key, input) {
       return processCell(target, key, input) || true
     }
   }
   const Data = new Proxy(data, dataHandler)
-  
+
   const api = {
+    sheetId,
     Data,
     parse,
+    patchCell: (key, entry, voidUpdates) => {
+      const entryValue = typeof entry === 'function'
+        ? entry(data[key] || {})
+        : entry
+
+      const current = data[key]
+      const currentRefs = [...((current && current.references) || [])]
+
+
+      if (entryValue && entryValue.references) {
+        const newRefs = _.difference(entryValue.references || [], currentRefs)
+
+        const removedRefs = _.difference(currentRefs, entryValue.references || [])
+        const conflicting = checkCircular(key, entryValue.references, sheetId)
+
+        if (conflicting) {
+          if (typeof voidUpdates === 'function') voidUpdates()
+          data[key] = {
+            ...(data[key] || {}),
+            ...entryValue,
+            references: currentRefs,
+            type: 'error',
+            value: 'ERROR REF: ' + _.flattenDeep([conflicting, key]).join(' ⇢ ')
+          }
+          engageListeners(key)
+          return;
+        }
+
+        newRefs.map(ref => addCellListener(key, ref))
+        removedRefs.map(ref => removeCellListener(key, ref))
+      }
+      data[key] = {
+        ...(data[key] || {}),
+        ...entryValue
+      }
+
+      engageListeners(key)
+
+    },
+    cellTick: (key) => {
+      api.patchCell(key, v => {
+        tick: Date.now()
+      })
+      const cell = data[key]
+      const postUpdate = v => {
+        api.patchCell(key, v)
+      }
+      const compiled = api.parse(cell.input, cell, postUpdate)
+      api.patchCell(key, { ...compiled, input: cell.input })
+    },
+    checkCircular,
+    processCell: (key, input) => processCell(data, key, input || (data[key] || {}).input),
     query: (input, current = {}, postUpdate) => parse(input, current, postUpdate).value,
     execute: (action, current = {}, postUpdate) => compile(action, current, postUpdate),
     toArray: () => toArray(Data),
@@ -144,16 +295,18 @@ const computer = (inputData = [], options = {}) => {
     set: (col, row, value) => {
       const cid = addressToName(col, row)
       return Data[cid] = value
-    }
+    },
+    getCellData,
+    asTree: () => asTree(API)
   }
   const apiHandler = {
-    get (target, key) {
+    get(target, key) {
       if (typeof key === 'string' && key.match(/^[A-Z]+[0-9]+$/)) {
         return (Data[key] || {}).value
       }
       return target[key]
     },
-    set (target, key, value) {
+    set(target, key, value) {
       if (typeof key === 'string' && key.match(/^[A-Z]+[0-9]+$/)) {
         Data[key] = value
         return true
@@ -173,7 +326,7 @@ const computer = (inputData = [], options = {}) => {
       }
     })
   }
-  
+
   return API
 }
 
@@ -194,6 +347,29 @@ const toArray = (data, inputs = false) => {
     output[row][col] = value[inputs ? 'input' : 'value']
   })
   return output
+}
+
+
+const asTree = (sheet) => {
+  const built = {}
+
+  const processItem = (val) => {
+    return {
+      input: val.input,
+      value: val.value,
+      ...(val.references || []).reduce((acc, ref) => ({ ...acc, [ref]: processItem(sheet.getCellData(ref)) }), {})
+    }
+  }
+  Object.entries(sheet.Data)
+    .sort(([a], [b]) => nameToAddress(a).row > nameToAddress(b).row ? 1 : 1)
+    .sort(([a], [b]) => nameToAddress(a).col > nameToAddress(b).col ? 1 : 1)
+    .map(([cid, cell]) => {
+      const item = processItem(cell)
+      built[cid] = item
+    })
+
+  const treeid = treeify.asTree(built, true)
+  return treeid
 }
 
 

@@ -15,7 +15,7 @@ const base = {
 
 const cjs = {
   entry: {
-    djit: path.resolve('./src/main.js')
+    djit: path.resolve('./src/index.js')
   },
   output: {
     libraryTarget: 'commonjs2',
@@ -25,7 +25,7 @@ const cjs = {
 }
 const umd = {
   entry: {
-    djit: path.resolve('./src/main.js')
+    djit: path.resolve('./src/index.js')
   },
   output: {
     libraryTarget: 'umd',
