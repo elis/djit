@@ -8,7 +8,9 @@ CellParser
 
 
 TypedFloat = _ float:Float _ { return typed('float', float) }
+
 TypedInteger = _ integer:Integer _ { return typed('integer', integer) }
+
 TypedString = _ string:String _ { return typed('string', string) }
 
 Execute = query:(GroupExecute/Factor/Command/Address) {
@@ -19,19 +21,25 @@ GroupExecute = '(' _ execute:Execute _ ')' property:AnyProperty* {
 	return {
     type: 'group',
     property,
-    	execute
-    }
+    execute
+  }
 }
-
 AnyProperty = DotProperty / ArrayProperty
 
 DotProperty = '.' _ property:(GroupAnyProperty/TypedInteger/Factor/Command/!Address val:[a-zA-Z0-9]+ { return {type: 'string', value: val.join('')} }/Address) _ {
-	return property
+	return {
+    ...property,
+    dotNotation: true
+  }
 }
 
 ArrayProperty = '[' _ property:(GroupAnyProperty/TypedInteger/Factor/Command/Address) _ ']' {
-	return property
+	return {
+    ...property,
+    arrayNotation: true
+  }
 }
+
 
 GroupAnyProperty = _ '(' _ property:(Factor/Command/!Address val:[a-zA-Z0-9]+ { return {type: 'string', value: val.join('')} }/Address) _ ')' _ {
 	return {
@@ -43,10 +51,10 @@ GroupAnyProperty = _ '(' _ property:(Factor/Command/!Address val:[a-zA-Z0-9]+ { 
 String = val:(.*) { return val.join('') }
 
 Integer = Exponential / SignInt
+
 SignInt = sign:'-'? numbers:($ [0-9,]+) {
   return parseInt((sign || '') + numbers.replace(/,/g, ''))
 }
-
 Exponential = left:(SignFloat/SignInt) 'e' '+'? right:SignInt {
   return parseFloat(left + 'e' + right)
 }
@@ -54,7 +62,6 @@ Exponential = left:(SignFloat/SignInt) 'e' '+'? right:SignInt {
 word = word:(letter+) {
   return word.join('')
 }
-
 letter = [a-zA-Z0-9]
 
 Operation = op:('+'/'-'/'*'/'/'/'^') _ value:Factor {
@@ -72,7 +79,7 @@ Factor = input:Primary _ operations:(Operation)* {
   return {type: 'compute', input, operations}
 }
 
-Primary = '(' val:Factor ')' { return val }
+Primary = GroupExecute
   / TypedFloat
   / TypedInteger
   / Arg
@@ -90,7 +97,7 @@ Args = _ arg:(Factor/Arg) _ ','? {
 SuffArg = ',' _ a:(Factor/Arg) { return a }
 
 Command = comm:(word) _ "(" _ args:(Args*) _ ")" property:(AnyProperty)* {
-return {
+  return {
     type: 'command',
     comm,
     property,
@@ -114,9 +121,9 @@ AddressProperty = '.' _ property:(GroupProperty/TypedInteger/!Address val:[a-zA-
 
 GroupProperty = _ '(' _ property:(TypedInteger/!Address val:[a-zA-Z0-9]+ { return {type: 'string', value: val.join('')} }/Address) _ ')' _ {
 	return {
-      group: true,
-      ...property
-    }
+    group: true,
+    ...property
+  }
 }
 
 Range = from:Address ':' to:(Address) _property:AnyProperty* {

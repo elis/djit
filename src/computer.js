@@ -68,7 +68,7 @@ const computer = (inputData = [], options = {}) => {
     const parsed = cellParser(`${input}`)
     if (parsed && parsed.type) {
       const compiled = compile(parsed, current, postUpdate)
-      return compile(parsed, current, postUpdate)
+      return compiled
     }
     return {
       type: 'error',

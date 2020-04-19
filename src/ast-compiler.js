@@ -419,6 +419,7 @@ const compileAST = (Data, current, options = {}, api) => {
       })
       const compiledProperty = action.property && computeProperties(result, action.property, true)
       return {
+        group: true,
         value: compiledProperty.value,
         references: [...result.references, ...compiledProperty.references]
       }

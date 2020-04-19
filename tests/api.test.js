@@ -71,10 +71,10 @@ describe('onBeforeSet', () => {
     expect(qdata.A1).toBe(150)
 
     await sleep(100)
-    expect(qdata.A1).toBe(210)
+    expect(qdata.A1).toBe(180)
 
     await sleep(400)
-    expect(qdata.A1).toBe(450)
+    expect(qdata.A1).toBe(300)
   })
 })
 
