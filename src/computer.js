@@ -35,7 +35,7 @@ const computer = (inputData = [], options = {}) => {
 
   const compile = (parsed, current, postUpdate) => {
     const _getValue = getValue && typeof getValue === 'function'
-      ? (value) => getValue(key, value)
+      ? (value) => getValue(value)
       : null
     try {
       const parse = compileAST(Data, current, { sheets, getCell, postUpdate, context, getSheets, getValue: _getValue }, API)
