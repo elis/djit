@@ -205,7 +205,7 @@ const computer = (inputData = [], options = {}) => {
         ...(v || {}),
         input,
         value: parsed && parsed.value,
-        type: !v.type || v.type === 'error' ? parsed.type : v.type,
+        type: parsed.type,
         references: [
           ...((parsed && parsed.references) || [])
         ]
