@@ -64,8 +64,8 @@ const compileAST = (Data, current, options = {}, api) => {
         if (compiledProp.references && compiledProp.references.length) {
           compiledProp.references.map(ref => references.add(ref))
         }
-        if (compiledProp.type === 'string' || compiledProp.type === 'integer' || typeof compiledProp.value === 'string' || typeof compiledProp.value === 'number') {
-          return result[compiledProp.value]
+        if (result && compiledProp.type === 'string' || compiledProp.type === 'integer' || typeof compiledProp.value === 'string' || typeof compiledProp.value === 'number') {
+          return result && result[compiledProp.value]
         }
         return result
 
