@@ -1,7 +1,7 @@
 import { nameToAddress, addressToName } from './utils'
 
 const compileAST = (Data, current, options = {}, api) => {
-  const { sheets = {}, context = {}, getSheets, getValue } = options
+  const { sheets = {}, context = {}, getContext, getSheets, getValue } = options
   let applyInnerAST
 
   const Sheets = () => typeof getSheets === 'function'
@@ -65,7 +65,7 @@ const compileAST = (Data, current, options = {}, api) => {
           compiledProp.references.map(ref => references.add(ref))
         }
         if (result && compiledProp.type === 'string' || compiledProp.type === 'integer' || typeof compiledProp.value === 'string' || typeof compiledProp.value === 'number') {
-          return result && result[compiledProp.value]
+          return !!result && result[compiledProp.value]
         }
         return result
 
@@ -234,8 +234,10 @@ const compileAST = (Data, current, options = {}, api) => {
       const references = new Set()
 
       if (action.result) return result
+      const layContext = (typeof getContext === 'function' && getContext()) || {}
+      const contextCollection = {...context, layContext}
 
-      const executable = context && (Object.values(context).find(ctx => {
+      const executable = (Object.values(contextCollection).find(ctx => {
         return ctx && typeof ctx[comm] === 'function'
       }) || {})[comm]
 

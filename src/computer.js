@@ -7,7 +7,7 @@ import assert from 'assert'
 
 
 const computer = (inputData = [], options = {}) => {
-  const { id: sheetId, sheets, context, onChange, getSheets: _getSheets, getValue, onBeforeSet: _onBeforeSet, getCell: _getCell } = options
+  const { id: sheetId, sheets, context, getContext, onChange, getSheets: _getSheets, getValue, onBeforeSet: _onBeforeSet, getCell: _getCell } = options
 
   const getSheets = () => {
     if (!sheetId) throw new Error('Unable to access other sheets without sheetID')
@@ -38,7 +38,7 @@ const computer = (inputData = [], options = {}) => {
       ? (value) => getValue(value)
       : null
     try {
-      const parse = compileAST(Data, current, { sheets, getCell, postUpdate, context, getSheets, getValue: _getValue }, API)
+      const parse = compileAST(Data, current, { sheets, getCell, postUpdate, context, getContext, getSheets, getValue: _getValue }, API)
       const computedValue = parse(parsed)
       return computedValue
     } catch (error) {
