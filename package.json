@@ -1,6 +1,6 @@
 {
     "name": "djit",
-    "version": "1.2.9",
+    "version": "1.2.10",
     "description": "Excel-like Javascript Object",
     "license": "MIT",
     "main": "cjs/djit.js",
@@ -52,6 +52,5 @@
         "type": "git",
         "url": "https://github.com/elis/djit"
     },
-    "dependencies": {
-    }
+    "dependencies": {}
 }
