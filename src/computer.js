@@ -228,7 +228,7 @@ const computer = (inputData = [], options = {}) => {
       const Sheet = Sheets()[remoteSheet]
 
       const remoteCid = addressToName({ ...remoteAddress, sheet: undefined })
-      return Sheet.getCellData[remoteCid]
+      return Sheet.getCellData(remoteCid)
     } else {
       return data[cid]
     }
