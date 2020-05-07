@@ -4,7 +4,7 @@ const djit = require('../cjs/djit')
 // Check the commented out code below
 
 describe('Stress test', () => {
-  test('Create and update 600 cell dependencies', () => {
+  test('Create and update 1250 cell dependencies', () => {
     let qdata
   
     const onChange = (cid, value) => {
@@ -14,8 +14,8 @@ describe('Stress test', () => {
   
   
     const initialVal = 100
-    const x = 10
-    const y = 60
+    const x = 50
+    const y = 25
     const base = djit.utils.addressToName({col: 0, row: y + 18})
     // console.log('what is base?', base)
     qdata[base] = initialVal
@@ -25,6 +25,7 @@ describe('Stress test', () => {
     let cid
     let prev
     let count = 0
+    let items = []
   
     for (let row = 0; row < y; ++row) {
       for (let col = 0; col < x; ++col) {
@@ -38,8 +39,16 @@ describe('Stress test', () => {
         
         prev = djit.utils.addressToName(prevCoord)
         qdata[cid] = `=${prev} + 10`
+        items.push(Date.now())
       }
     }
+
+    const lengths = items.map((time, i, arr) => i ? time - arr[i - 1] : time - startCreating)
+    const average = lengths.reduce((total, l) => total + l, 0) / lengths.length
+
+    // console.log('Lengths:', lengths)
+    // console.log('Average:', average)
+
   
     const endCreating = Date.now()
     const creationDuration = endCreating - startCreating
@@ -49,9 +58,10 @@ describe('Stress test', () => {
       // console.log(`qdata.${cid}`, qdata[cid])
       // console.log(`qdata.Data.${cid}`, qdata.Data[cid])
       // console.table({
-      //   'Creation duration': creationDuration,
+      //   'Creation duration': creationDuration + 'ms',
       //   'Cell count': count,
-      //   'Last CID': cid
+      //   'Last CID': cid,
+      //   'Average cell set duration': average + 'ms'
       // })
   
       const measure = async (val) => {
@@ -70,6 +80,7 @@ describe('Stress test', () => {
         //   'Cell count': count,
         //   'Value updated to': val,
         //   'Creation duration': creationDuration + 'ms',
+        //   'Average cell set duration': average + 'ms',
         //   'Edit time': end - start + 'ms'
         // })
         expect(qdata[cid]).toBe(val + (y * x * 10))

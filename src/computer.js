@@ -7,17 +7,20 @@ import assert from 'assert'
 
 
 const computer = (inputData = [], options = {}) => {
-  const { id: sheetId, sheets, context, getContext, onChange, getSheets: _getSheets, getValue, onBeforeSet: _onBeforeSet, getCell: _getCell } = options
+  const { id: sheetId, sheets, context, getContext, onChange, getSheets: _getSheets, getValue, onBeforeSet: _onBeforeSet, getCell: _getCell, initialValues = [] } = options
 
-  const getSheets = () => {
-    if (!sheetId) throw new Error('Unable to access other sheets without sheetID')
-    return typeof getSheets === 'function'
+  const getSheets = (silent = false) => {
+    if (!sheetId && !silent) throw new Error('Unable to access other sheets without sheetID')
+    return typeof _getSheets === 'function'
       ? _getSheets()
       : sheets
         ? sheets
         : {}
   }
   const Sheets = () => getSheets()
+  const updates = {
+    toTick: []
+  }
 
   const getCell = typeof _getCell === 'function'
     ? (entry) => {
@@ -82,15 +85,19 @@ const computer = (inputData = [], options = {}) => {
     if (remoteSheet) {
       const localAddress = addressToName({ ...nameToAddress(listener), sheet: sheetId })
       const Sheet = Sheets()[remoteSheet]
+      if (Sheet) {
+        const remoteCid = addressToName({ ...remoteAddress, sheet: undefined })
+        Sheet.patchCell(remoteCid, v => {
+          const newValue = ({
+            listeners: [
+              ...(v.listeners || []).filter(rl => rl !== localAddress),
+              ...(add ? [localAddress] : [])
+            ]
+          })
+          return newValue
+        })
 
-      const remoteCid = addressToName({ ...remoteAddress, sheet: undefined })
-      Sheet.patchCell(remoteCid, v => ({
-        listeners: [
-          ...(v.listeners || []).filter(rl => rl !== localAddress),
-          ...(add ? [localAddress] : [])
-        ]
-      }))
-      // Sheet.cellTick(remoteCid)
+      }
     } else {
       api.patchCell(voice, v => ({
         listeners: [
@@ -98,8 +105,6 @@ const computer = (inputData = [], options = {}) => {
           ...(add ? [listener] : [])
         ]
       }))
-      // api.cellTick(voice)
-
     }
   }
   const addCellListener = handleListener(true)
@@ -112,13 +117,14 @@ const computer = (inputData = [], options = {}) => {
       const Sheet = Sheets()[remoteSheet]
 
       const remoteCid = addressToName({ ...remoteAddress, sheet: undefined })
-      Sheet.cellTick(remoteCid)
+      if (Sheet)
+        Sheet.cellTick(remoteCid)
     } else {
       api.cellTick(ref)
     }
   }
 
-  const engageListener = voice => tick
+  const engageListener = voice => e => updates.toTick.push(e)
 
   const cache = {}
 
@@ -135,6 +141,10 @@ const computer = (inputData = [], options = {}) => {
         cache[key] = _.cloneDeep(cell)
         onChange(key, cell)
       }
+
+      setTimeout(() => {
+        [...new Set(updates.toTick)].forEach(() => tick(updates.toTick.pop()))
+      }, 0)
     }
   }
 
@@ -195,6 +205,7 @@ const computer = (inputData = [], options = {}) => {
     const voidUpdates = () => {
       allowPosts = false
     }
+
     const parsed = parse(input, current, postUpdate)
     if (parsed && parsed.property) {
 
@@ -208,7 +219,8 @@ const computer = (inputData = [], options = {}) => {
         type: parsed.type,
         references: [
           ...((parsed && parsed.references) || [])
-        ]
+        ],
+        ...(typeof parsed.resolved !== 'undefined' ? {resolved: parsed.resolved} : {})
       })
 
       return newValue
@@ -226,12 +238,27 @@ const computer = (inputData = [], options = {}) => {
     const remoteSheet = remoteAddress.sheet
     if (remoteSheet) {
       const Sheet = Sheets()[remoteSheet]
-
       const remoteCid = addressToName({ ...remoteAddress, sheet: undefined })
+      
       return Sheet.getCellData(remoteCid)
     } else {
       return data[cid]
     }
+  }
+
+  const sheetsUpdated = () => {
+    const sheets = getSheets()
+    const nsheets = { [null]: 'self ref', ...sheets } // first elm is null for local cell references
+    Object.entries(data).map(([key, cell]) => {
+      const resolved = cell.resolved
+      if (!resolved) {
+        // get references of the unresolved cell
+        const unresolvedRefs = cell.references.map(ref => nameToAddress(ref))
+        const unresolvedSheets = [...new Set(unresolvedRefs.map(({sheet}) => sheet))]
+        const availableSheets = unresolvedSheets.filter(query => query in nsheets)
+        if (availableSheets.length) api.cellTick(key)
+      }
+    })
   }
 
 
@@ -257,6 +284,13 @@ const computer = (inputData = [], options = {}) => {
 
       const current = data[key]
       const currentRefs = [...((current && current.references) || [])]
+      const isUnresolved = current
+        ? typeof current.resolved !== 'undefined' && !current.resolved
+        : entryValue && typeof entryValue.resolved !== 'undefined' && !entryValue.resolved
+
+      const entryResolved = entryValue?.resolved
+
+      const isNewlyResolved = isUnresolved && entryResolved
 
       const postUpdate = (newValue) => {
         if (typeof newValue === 'function')
@@ -264,12 +298,17 @@ const computer = (inputData = [], options = {}) => {
         else
           api.patchCell(key, newValue)
       }
+      if (isNewlyResolved)
+        data[key] = onBeforeSet(key, {
+          ...(data[key] || {}),
+          resolved: true
+        }, postUpdate)
 
       if (entryValue && entryValue.references) {
         const newRefs = _.difference(entryValue.references || [], currentRefs)
 
-        const removedRefs = _.difference(currentRefs, entryValue.references || [])
-        const conflicting = checkCircular(key, entryValue.references, sheetId)
+        const removedRefs = _.difference(currentRefs, entryValue?.references || [])
+        const conflicting = checkCircular(key, entryValue?.references || [], sheetId)
 
         if (conflicting) {
           if (typeof voidUpdates === 'function') voidUpdates()
@@ -279,27 +318,42 @@ const computer = (inputData = [], options = {}) => {
             ...entryValue,
             references: currentRefs,
             type: 'error',
-            value: 'ERROR REF: ' + _.flattenDeep([conflicting, key]).join(' ⇢ ')
+            value: 'ERROR REF: ' + _.flattenDeep([conflicting, key]).join(' ⇢ '),
+            ...(
+              isNewlyResolved
+              ? { resolved: true }
+              : typeof entryValue.resolved !== 'undefined'
+              ? { resolve: entryValue.resolved }
+              : {}
+            )
           }, postUpdate)
+
           engageListeners(key)
           return;
         }
 
         newRefs.map(ref => addCellListener(key, ref))
         removedRefs.map(ref => removeCellListener(key, ref))
+      } else if (isNewlyResolved) {
+        currentRefs.map(ref => addCellListener(key, ref))
       }
+
       data[key] = onBeforeSet(key, {
         ...(data[key] || {}),
-        ...entryValue
+        ...entryValue,
+        ...(
+          isNewlyResolved
+          ? { resolved: true }
+          : entryValue && typeof entryValue.resolved !== 'undefined'
+          ? { resolved: entryValue.resolved }
+          : {}
+        )
       }, postUpdate)
 
       engageListeners(key)
     },
     cellTick: (key) => {
-      api.patchCell(key, v => {
-        tick: Date.now()
-      })
-      const cell = data[key]
+      const cell = data[key] ?? {}
       const postUpdate = v => {
         api.patchCell(key, v)
       }
@@ -317,6 +371,7 @@ const computer = (inputData = [], options = {}) => {
       return Data[cid] = value
     },
     getCellData,
+    sheetsUpdated,
     asTree: () => asTree(API)
   }
   const apiHandler = {
@@ -342,6 +397,7 @@ const computer = (inputData = [], options = {}) => {
         row.map((col, colId) => {
           const cid = addressToName(colId, rowId)
           Data[cid] = col
+
         })
       }
     })
@@ -374,6 +430,7 @@ const asTree = (sheet) => {
   const built = {}
 
   const processItem = (val) => {
+    // console.log('processing item:', val)
     return {
       input: val.input,
       value: val.value,

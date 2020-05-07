@@ -125,10 +125,7 @@ describe('getCell value trap', () => {
     expect(qdata.A2).toBe('Start 😃 150')
 
     await sleep(400)
-    expect(qdata.A2).toBe('Start 😃 230')
-
-    await sleep(400)
-    expect(qdata.A1).toBe('Start 😃 250')
+    expect(qdata.A1).toBe('Start 😃 230')
   })
 })
 
@@ -158,13 +155,13 @@ describe('onChange', () => {
     qdata.A1 = 10
     vsheet.A1 = '=qdata!A1'
     expect(onChangeQdata.mock.calls.length).toBe(2)
-    expect(onChangeVsheet.mock.calls.length).toBe(2)
+    expect(onChangeVsheet.mock.calls.length).toBe(1)
 
     for (let i = 0; i < 1022; ++i) {
       qdata.A1 = i
     }
     expect(onChangeQdata.mock.calls.length).toBe(1024)
-    expect(onChangeVsheet.mock.calls.length).toBe(1024)
+    expect(onChangeVsheet.mock.calls.length).toBe(1)
   })
 
 })

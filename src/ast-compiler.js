@@ -109,17 +109,20 @@ const compileAST = (Data, current, options = {}, api) => {
       const { address, sheet, property, group } = action
       const { listeners, ...cell } = Data[address] || {}
       const references = new Set()
-      references.add(address)
+      references.add(sheet ? sheet + '!' + address : address)
+      const resolved = { isResolved: typeof cell.resolved === 'undefined' || cell.resolved ? true : cell.resolved }
       const value = cell.value
 
       if (sheet) {
         const Sheet = Sheets()[sheet]
         if (Sheet) {
           const { sheet, ...request } = action
+
           try {
             const { references, ...result } = Sheet.execute(request)
             if (result && result.type === 'error') return {
               ...result,
+              resolved: !resolved.isResolved ? false : true,
               type: 'error',
               value: 'ERROR VAL ' + sheet + '!' + address,
               references: references && references.length && references.map(nameToAddress).map(q => ({...q, sheet})).map(addressToName)
@@ -128,51 +131,50 @@ const compileAST = (Data, current, options = {}, api) => {
             references.map(nameToAddress).map(q => ({...q, sheet})).map(addressToName)
 
             return getCell({
+              resolved: !resolved.isResolved ? false : true,
               ...result,
               references: references && references.length && references.map(nameToAddress).map(q => ({...q, sheet})).map(addressToName)
             })
           } catch (error) {
-            // console.error('Error remote:', error)
-            // console.groupEnd()
-
             return getCell({
               ...cell,
               type: 'error',
               value: 'ERROR ADDR',
-              error
+              error,
+              resolved: !resolved.isResolved ? false : true
             })
           }
+        } else {
+          return getCell({
+            ...cell,
+            references: [...references],
+            resolved: false
+          })
         }
       }
       if (cell.type === 'error') {
         return getCell({
           ...cell,
-          references: [...references]
+          references: [...references],
+          resolved: !resolved.isResolved ? false : true
         })
       }
 
       if (property) {
-        if (group) {
+        const properties = computeProperties({ ...cell, value }, property, group)
 
-          const properties = computeProperties({ ...cell, value }, property, true)
-          return getCell({
-            value: properties && properties.value,
-            references: [...references, ...(properties.references || {})]
-          })
-        } else {
-          const properties = computeProperties({ ...cell, value }, property)
-
-          return getCell({
-            value: properties && properties.value,
-            references: [...references, ...(properties.references || [])],
-            properties
-          })
-        }
+        return getCell({
+          value: properties && properties.value,
+          references: [...references, ...(properties.references || [])],
+          properties,
+          resolved: !resolved.isResolved ? false : true
+        })
       }
 
       return getCell({
         ...cell,
-        references: [...references]
+        references: [...references],
+        resolved: !resolved.isResolved ? false : true
       })
     },
 
@@ -185,16 +187,22 @@ const compileAST = (Data, current, options = {}, api) => {
     // =2 + 4
     compute(input, action) {
       const references = new Set()
+      const resolved = { isResolved: true }
+
       const left = applyInnerAST(action.input)
       if (left.references && left.references.length) {
         left.references.map(r => references.add(r))
+      }
+      if (typeof left.resolved !== 'undefined') {
+        resolved.isResolved = left.resolved
       }
 
       if (left && left.type === 'error') {
         return {
           type: 'error',
           value: action.input.type === 'address' ? 'ERROR VAL ' + (action.input.sheet ? action.input.sheet + '!' : '') + action.input.address + ' ' : left.value,
-          references: [...references]
+          references: [...references],
+          resolved: !resolved.isResolved ? false : true
         }
       }
       let result = gv(left.value)
@@ -207,13 +215,18 @@ const compileAST = (Data, current, options = {}, api) => {
           if (right.references && right.references.length) {
             right.references.map(r => references.add(r))
           }
+          if (typeof right.resolved !== 'undefined' && resolved.isResolved) {
+            resolved.isResolved = right.resolved
+          }
+    
 
           if (right.type === 'error') {
 
             return {
               type: 'error',
               value: op.value.type === 'address' ? 'ERROR VAL ' + op.value.address : right.value,
-              references: [...references]
+              references: [...references],
+              resolved: !resolved.isResolved ? false : true
             }
           }
           if (!lastType) lastType = right.type
@@ -224,7 +237,8 @@ const compileAST = (Data, current, options = {}, api) => {
       return {
         type: lastType,
         value: result,
-        references: [...references]
+        references: [...references],
+        resolved: !resolved.isResolved ? false : true
       }
     },
 
@@ -232,6 +246,7 @@ const compileAST = (Data, current, options = {}, api) => {
     command(input, action) {
       const { comm, args, property } = action
       const references = new Set()
+      const resolved = { isResolved: true }
 
       if (action.result) return result
       const layContext = (typeof getContext === 'function' && getContext()) || {}
@@ -243,7 +258,8 @@ const compileAST = (Data, current, options = {}, api) => {
 
       if (!executable) return {
         type: 'error',
-        value: 'ERROR EXE'
+        value: 'ERROR EXE',
+        resolved: !resolved.isResolved ? false : true
       }
 
       const run = (args) => {
@@ -273,6 +289,9 @@ const compileAST = (Data, current, options = {}, api) => {
             if (parsedArg.references) {
               parsedArg.references.map(ref => references.add(ref))
             }
+            if ((typeof parsedArg.resolved !== 'undefined' && !parsedArg.resolved) && resolved.isResolved) {
+              resolved.isResolved = parsedArg.resolved
+            }
           }
           return parsedArg
         })
@@ -287,7 +306,8 @@ const compileAST = (Data, current, options = {}, api) => {
             const result = run(inputs)
             return {
               value: result,
-              references: [...references]
+              references: [...references],
+              resolved: !resolved.isResolved ? false : true
             }
           }
         }
@@ -320,7 +340,8 @@ const compileAST = (Data, current, options = {}, api) => {
             value: ourPromise,
             arguments: args,
             inputs,
-            parsedArgs
+            parsedArgs,
+            resolved: !resolved.isResolved ? false : true
           }
         }
         
@@ -334,7 +355,8 @@ const compileAST = (Data, current, options = {}, api) => {
             value: ourPromise,
             arguments: args,
             inputs,
-            parsedArgs
+            parsedArgs,
+            resolved: !resolved.isResolved ? false : true
           }
         }
         return {
@@ -342,7 +364,8 @@ const compileAST = (Data, current, options = {}, api) => {
           value: result,
           arguments: args,
           inputs,
-          parsedArgs
+          parsedArgs,
+          resolved: !resolved.isResolved ? false : true
         }
       }
       return processInputs(inputs)
@@ -385,7 +408,8 @@ const compileAST = (Data, current, options = {}, api) => {
               ...cell,
               type: 'error',
               value: 'ERROR ADDR',
-              error
+              error,
+              resolved: typeof result.resolved !== 'undefined' ? result.resolved : true
             }
           }
         }
@@ -395,7 +419,9 @@ const compileAST = (Data, current, options = {}, api) => {
       for (let row = rowStart; row < rowStart + rows; ++row) {
         const k = []
         for (let col = colStart; col < colStart + cols; ++col) {
-          const cid = addressToName(col, row)
+          const cid = remoteSheet
+            ? addressToName(col, row, remoteSheet)
+            : addressToName(col, row)
           references.add(cid)
 
           const value = Data[cid]
@@ -409,7 +435,8 @@ const compileAST = (Data, current, options = {}, api) => {
         cols,
         references: [...references],
         type: 'range',
-        value: result
+        value: result,
+        resolved: remoteSheet ? false : true
       }
     },
 
@@ -423,7 +450,8 @@ const compileAST = (Data, current, options = {}, api) => {
       return {
         group: true,
         value: compiledProperty.value,
-        references: [...result.references, ...compiledProperty.references]
+        references: [...result.references, ...compiledProperty.references],
+        resolved: typeof result.resolved !== 'undefined' ? result.resolved : true
       }
     }
   }
@@ -436,6 +464,7 @@ const compileAST = (Data, current, options = {}, api) => {
     }
     else if (action.type && typeof astActions[action.type] === 'function') {
       const result = astActions[action.type](action.value, action)
+
       if (!result) return action.value
       return result
     }
