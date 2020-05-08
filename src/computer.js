@@ -253,10 +253,10 @@ const computer = (inputData = [], options = {}) => {
       const resolved = cell.resolved
       if (!resolved) {
         // get references of the unresolved cell
-        const unresolvedRefs = cell.references.map(ref => nameToAddress(ref))
-        const unresolvedSheets = [...new Set(unresolvedRefs.map(({sheet}) => sheet))]
-        const availableSheets = unresolvedSheets.filter(query => query in nsheets)
-        if (availableSheets.length) api.cellTick(key)
+        const unresolvedRefs = cell?.references?.map(ref => nameToAddress(ref))
+        const unresolvedSheets = [...new Set(unresolvedRefs?.map(({sheet}) => sheet))]
+        const availableSheets = unresolvedSheets?.filter(query => query in nsheets)
+        if (availableSheets?.length) api.cellTick(key)
       }
     })
   }
@@ -305,7 +305,9 @@ const computer = (inputData = [], options = {}) => {
         }, postUpdate)
 
       if (entryValue && entryValue.references) {
-        const newRefs = _.difference(entryValue.references || [], currentRefs)
+        const newRefs = isNewlyResolved
+          ? entryValue.references || currentRefs || [] //_.difference(entryValue.references || currentRefs || [], [])
+          : _.difference(entryValue.references || [], currentRefs)
 
         const removedRefs = _.difference(currentRefs, entryValue?.references || [])
         const conflicting = checkCircular(key, entryValue?.references || [], sheetId)
@@ -430,7 +432,6 @@ const asTree = (sheet) => {
   const built = {}
 
   const processItem = (val) => {
-    // console.log('processing item:', val)
     return {
       input: val.input,
       value: val.value,
