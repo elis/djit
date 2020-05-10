@@ -7,10 +7,13 @@ import assert from 'assert'
 
 
 const computer = (inputData = [], options = {}) => {
-  const { id: sheetId, sheets, context, getContext, onChange, getSheets: _getSheets, getValue, onBeforeSet: _onBeforeSet, getCell: _getCell, initialValues = [] } = options
+  const { id, sheets, context, getContext, onChange, getSheets: _getSheets, getValue, onBeforeSet: _onBeforeSet, getCell: _getCell, initialValues = [] } = options
+  const config = {
+    sheetId: id
+  }
 
   const getSheets = (silent = false) => {
-    if (!sheetId && !silent) throw new Error('Unable to access other sheets without sheetID')
+    if (!config.sheetId && !silent) throw new Error('Unable to access other sheets without sheetID')
     return typeof _getSheets === 'function'
       ? _getSheets()
       : sheets
@@ -83,7 +86,7 @@ const computer = (inputData = [], options = {}) => {
     const remoteAddress = nameToAddress(voice)
     const remoteSheet = remoteAddress.sheet
     if (remoteSheet) {
-      const localAddress = addressToName({ ...nameToAddress(listener), sheet: sheetId })
+      const localAddress = addressToName({ ...nameToAddress(listener), sheet: config.sheetId })
       const Sheet = Sheets()[remoteSheet]
       if (Sheet) {
         const remoteCid = addressToName({ ...remoteAddress, sheet: undefined })
@@ -166,7 +169,7 @@ const computer = (inputData = [], options = {}) => {
             const remoteRefs = remoteCell && remoteCell.references
 
             if (remoteRefs) {
-              const localCid = addressToName({ ...nameToAddress(key), sheet: sheetId })
+              const localCid = addressToName({ ...nameToAddress(key), sheet: config.sheetId })
               const remoteConflicts = Sheet.checkCircular(localCid, remoteRefs, originating, [...checked, key])
               const refName = addressToName({ ...nameToAddress(ref), sheet: nameToAddress(ref).sheet && nameToAddress(ref).sheet === originating ? null : remoteSheet })
               if (remoteConflicts) return [refName, remoteConflicts] //.join(' ==> ')
@@ -177,8 +180,8 @@ const computer = (inputData = [], options = {}) => {
             const remoteRefs = remoteCell && remoteCell.references
             if (remoteCell) {
               const remoteConflicts = checkCircular(key, remoteRefs, originating, [...checked, key])
-              const refName = originating !== sheetId
-                ? addressToName({ ...nameToAddress(ref), sheet: sheetId })
+              const refName = originating !== config.sheetId
+                ? addressToName({ ...nameToAddress(ref), sheet: config.sheetId })
                 : ref
               if (remoteConflicts) return [refName, remoteConflicts] //.join(' ++> ')
             }
@@ -261,6 +264,114 @@ const computer = (inputData = [], options = {}) => {
     })
   }
 
+  const setSheetId = (newId) => {
+    const oldid = config.sheetId
+    config.sheetId = newId
+    api.sheetId = newId
+    Object.entries(data)
+      .map(([cid, cell]) => ([cid, cell]))
+      .filter(([cid, cell]) => {
+        const listeners = cell.listeners?.map(lid => [lid, nameToAddress(lid)]).filter(([lid, {sheet}]) => !!sheet)
+        if (listeners?.length) {
+          listeners.map(([lid, { sheet, ...address }]) => {
+            const Sheet = Sheets()[sheet]
+            
+            if (Sheet) {
+              const rid = addressToName(address)
+              Sheet[rid] = Sheet.Data[rid].input.replace(oldid + '!', newId + '!')
+            }
+          })
+        }
+    })
+  }
+
+  const patchCell = (key, entry, voidUpdates) => {
+    const entryValue = typeof entry === 'function'
+      ? entry(data[key] || {})
+      : entry
+
+    const current = data[key]
+    const currentRefs = [...((current && current.references) || [])]
+    const isUnresolved = current
+      ? typeof current.resolved !== 'undefined' && !current.resolved
+      : entryValue && typeof entryValue.resolved !== 'undefined' && !entryValue.resolved
+
+    const entryResolved = entryValue?.resolved
+
+    const isNewlyResolved = isUnresolved && entryResolved
+
+    const postUpdate = (newValue) => {
+      if (typeof newValue === 'function')
+        api.patchCell(key, newValue(data[key]))
+      else
+        api.patchCell(key, newValue)
+    }
+    if (isNewlyResolved)
+      data[key] = onBeforeSet(key, {
+        ...(data[key] || {}),
+        resolved: true
+      }, postUpdate)
+
+    if (entryValue && entryValue.references) {
+      const newRefs = isNewlyResolved
+        ? entryValue.references || currentRefs || [] //_.difference(entryValue.references || currentRefs || [], [])
+        : _.difference(entryValue.references || [], currentRefs)
+
+      const removedRefs = _.difference(currentRefs, entryValue?.references || [])
+      const conflicting = checkCircular(key, entryValue?.references || [], config.sheetId)
+
+      if (conflicting) {
+        if (typeof voidUpdates === 'function') voidUpdates()
+
+        data[key] = onBeforeSet(key, {
+          ...(data[key] || {}),
+          ...entryValue,
+          references: currentRefs,
+          type: 'error',
+          value: 'ERROR REF: ' + _.flattenDeep([conflicting, key]).join(' ⇢ '),
+          ...(
+            isNewlyResolved
+            ? { resolved: true }
+            : typeof entryValue.resolved !== 'undefined'
+            ? { resolve: entryValue.resolved }
+            : {}
+          )
+        }, postUpdate)
+
+        engageListeners(key)
+        return;
+      }
+
+      newRefs.map(ref => addCellListener(key, ref))
+      removedRefs.map(ref => removeCellListener(key, ref))
+    } else if (isNewlyResolved) {
+      currentRefs.map(ref => addCellListener(key, ref))
+    }
+
+    data[key] = onBeforeSet(key, {
+      ...(data[key] || {}),
+      ...entryValue,
+      ...(
+        isNewlyResolved
+        ? { resolved: true }
+        : entryValue && typeof entryValue.resolved !== 'undefined'
+        ? { resolved: entryValue.resolved }
+        : {}
+      )
+    }, postUpdate)
+
+    engageListeners(key)
+  }
+
+  const cellTick = (key) => {
+    const cell = data[key] ?? {}
+    const postUpdate = v => {
+      api.patchCell(key, v)
+    }
+    const compiled = api.parse(cell.input, cell, postUpdate)
+    api.patchCell(key, { ...compiled, input: cell.input })
+  }
+
 
   const data = {}
   const dataHandler = {
@@ -274,94 +385,11 @@ const computer = (inputData = [], options = {}) => {
   const Data = new Proxy(data, dataHandler)
 
   const api = {
-    sheetId,
+    sheetId: config.sheetId,
     Data,
     parse,
-    patchCell: (key, entry, voidUpdates) => {
-      const entryValue = typeof entry === 'function'
-        ? entry(data[key] || {})
-        : entry
-
-      const current = data[key]
-      const currentRefs = [...((current && current.references) || [])]
-      const isUnresolved = current
-        ? typeof current.resolved !== 'undefined' && !current.resolved
-        : entryValue && typeof entryValue.resolved !== 'undefined' && !entryValue.resolved
-
-      const entryResolved = entryValue?.resolved
-
-      const isNewlyResolved = isUnresolved && entryResolved
-
-      const postUpdate = (newValue) => {
-        if (typeof newValue === 'function')
-          api.patchCell(key, newValue(data[key]))
-        else
-          api.patchCell(key, newValue)
-      }
-      if (isNewlyResolved)
-        data[key] = onBeforeSet(key, {
-          ...(data[key] || {}),
-          resolved: true
-        }, postUpdate)
-
-      if (entryValue && entryValue.references) {
-        const newRefs = isNewlyResolved
-          ? entryValue.references || currentRefs || [] //_.difference(entryValue.references || currentRefs || [], [])
-          : _.difference(entryValue.references || [], currentRefs)
-
-        const removedRefs = _.difference(currentRefs, entryValue?.references || [])
-        const conflicting = checkCircular(key, entryValue?.references || [], sheetId)
-
-        if (conflicting) {
-          if (typeof voidUpdates === 'function') voidUpdates()
-
-          data[key] = onBeforeSet(key, {
-            ...(data[key] || {}),
-            ...entryValue,
-            references: currentRefs,
-            type: 'error',
-            value: 'ERROR REF: ' + _.flattenDeep([conflicting, key]).join(' ⇢ '),
-            ...(
-              isNewlyResolved
-              ? { resolved: true }
-              : typeof entryValue.resolved !== 'undefined'
-              ? { resolve: entryValue.resolved }
-              : {}
-            )
-          }, postUpdate)
-
-          engageListeners(key)
-          return;
-        }
-
-        newRefs.map(ref => addCellListener(key, ref))
-        removedRefs.map(ref => removeCellListener(key, ref))
-      } else if (isNewlyResolved) {
-        currentRefs.map(ref => addCellListener(key, ref))
-      }
-
-      data[key] = onBeforeSet(key, {
-        ...(data[key] || {}),
-        ...entryValue,
-        ...(
-          isNewlyResolved
-          ? { resolved: true }
-          : entryValue && typeof entryValue.resolved !== 'undefined'
-          ? { resolved: entryValue.resolved }
-          : {}
-        )
-      }, postUpdate)
-
-      engageListeners(key)
-    },
-    cellTick: (key) => {
-      const cell = data[key] ?? {}
-      const postUpdate = v => {
-        api.patchCell(key, v)
-      }
-      const compiled = api.parse(cell.input, cell, postUpdate)
-      api.patchCell(key, { ...compiled, input: cell.input })
-    },
+    patchCell,
+    cellTick,
     checkCircular,
     processCell: (key, input) => processCell(data, key, input || (data[key] || {}).input),
     query: (input, current = {}, postUpdate) => parse(input, current, postUpdate).value,
@@ -374,13 +402,15 @@ const computer = (inputData = [], options = {}) => {
     },
     getCellData,
     sheetsUpdated,
-    asTree: () => asTree(API)
+    asTree: () => asTree(API),
+    setSheetId
   }
   const apiHandler = {
     get(target, key) {
       if (typeof key === 'string' && key.match(/^[A-Z]+[0-9]+$/)) {
         return (Data[key] || {}).value
       }
+      if (key === 'sheetId') return config.sheetId
       return target[key]
     },
     set(target, key, value) {
