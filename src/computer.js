@@ -9,7 +9,8 @@ import assert from 'assert'
 const computer = (inputData = [], options = {}) => {
   const { id, sheets, context, getContext, onChange, getSheets: _getSheets, getValue, onBeforeSet: _onBeforeSet, getCell: _getCell, initialValues = [] } = options
   const config = {
-    sheetId: id
+    sheetId: id,
+    onChange
   }
 
   const getSheets = (silent = false) => {
@@ -140,9 +141,9 @@ const computer = (inputData = [], options = {}) => {
       const engage = engageListener(key)
       listeners.map(engage)
       
-      if (onChange && typeof onChange === 'function') {
+      if (config.onChange && typeof config.onChange === 'function') {
         cache[key] = _.cloneDeep(cell)
-        onChange(key, cell)
+        config.onChange(key, cell)
       }
 
       setTimeout(() => {
@@ -403,7 +404,12 @@ const computer = (inputData = [], options = {}) => {
     getCellData,
     sheetsUpdated,
     asTree: () => asTree(API),
-    setSheetId
+    setSheetId,
+    setOnChange: (newOnChange) => {
+      config.onChange = (...ar) => {
+        newOnChange(...ar)
+      }
+    }
   }
   const apiHandler = {
     get(target, key) {
